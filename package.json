@@ -1,0 +1,31 @@
+{
+  "name": "mtg-request-bot",
+  "version": "1.0.0",
+  "description": "Discord bot for MTG card requests",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "fastify": "^5.6.2",
+    "fastify-raw-body": "^5.0.0",
+    "tweetnacl": "^1.0.3",
+    "pg": "^8.16.3",
+    "openai": "^6.9.1",
+    "puppeteer": "^24.31.0",
+    "dotenv": "^17.2.3",
+    "pino": "^10.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "@types/node": "^24.10.1",
+    "@types/pg": "^8.15.6",
+    "tsx": "^4.20.6"
+  }
+}
+
