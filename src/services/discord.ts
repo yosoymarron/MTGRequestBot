@@ -229,3 +229,14 @@ export async function updateInteractionResponse(
   );
 }
 
+export async function getChannelMessages(
+  channelId: string,
+  limit: number = 100
+): Promise<any[]> {
+  await sleep(500); // Rate limit delay
+
+  return discordRequest(
+    `/channels/${channelId}/messages?limit=${limit}`
+  );
+}
+

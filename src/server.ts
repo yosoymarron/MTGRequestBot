@@ -7,6 +7,11 @@ import {
   registerCommandsForGuild,
   getAllGuilds,
 } from './services/commandRegistration';
+import {
+  initializeScheduler,
+  sendDailyReminders,
+  sendAgingNotifications,
+} from './services/scheduler';
 
 const app = Fastify({
   logger: {
@@ -73,6 +78,78 @@ app.post('/admin/register-commands', async (request, reply) => {
     }
   } catch (error: any) {
     app.log.error({ error }, 'Failed to register commands');
+    reply.code(500);
+    return {
+      success: false,
+      error: error.message || String(error),
+    };
+  }
+});
+
+// Admin endpoint to trigger daily reminders manually
+app.post('/admin/trigger-daily-reminders', async (request, reply) => {
+  try {
+    const guildId = (request.query as any)?.guildId as string | undefined;
+    const targetGuildId = guildId || '754831938035908638';
+    
+    app.log.info(`Manually triggering daily reminders for guild ${targetGuildId}`);
+    await sendDailyReminders(targetGuildId);
+    return {
+      success: true,
+      message: `Daily reminders triggered successfully for guild ${targetGuildId}`,
+      guildId: targetGuildId,
+    };
+  } catch (error: any) {
+    app.log.error({ error }, 'Failed to trigger daily reminders');
+    reply.code(500);
+    return {
+      success: false,
+      error: error.message || String(error),
+    };
+  }
+});
+
+// Admin endpoint to trigger aging alerts manually
+app.post('/admin/trigger-aging-alerts', async (request, reply) => {
+  try {
+    const guildId = (request.query as any)?.guildId as string | undefined;
+    const targetGuildId = guildId || '754831938035908638';
+    
+    app.log.info(`Manually triggering aging alerts for guild ${targetGuildId}`);
+    await sendAgingNotifications(targetGuildId);
+    return {
+      success: true,
+      message: `Aging alerts triggered successfully for guild ${targetGuildId}`,
+      guildId: targetGuildId,
+    };
+  } catch (error: any) {
+    app.log.error({ error }, 'Failed to trigger aging alerts');
+    reply.code(500);
+    return {
+      success: false,
+      error: error.message || String(error),
+    };
+  }
+});
+
+// Admin endpoint to trigger all notifications manually
+app.post('/admin/trigger-all-notifications', async (request, reply) => {
+  try {
+    const guildId = (request.query as any)?.guildId as string | undefined;
+    const targetGuildId = guildId || '754831938035908638';
+    
+    app.log.info(`Manually triggering all notifications for guild ${targetGuildId}`);
+    await Promise.all([
+      sendDailyReminders(targetGuildId),
+      sendAgingNotifications(targetGuildId),
+    ]);
+    return {
+      success: true,
+      message: `All notifications triggered successfully for guild ${targetGuildId}`,
+      guildId: targetGuildId,
+    };
+  } catch (error: any) {
+    app.log.error({ error }, 'Failed to trigger notifications');
     reply.code(500);
     return {
       success: false,
@@ -152,5 +229,8 @@ app.listen({ port: PORT, host: '0.0.0.0' }, (err, address) => {
     process.exit(1);
   }
   app.log.info(`Server listening on ${address}`);
+  
+  // Initialize the scheduler for daily notifications
+  initializeScheduler();
 });
 

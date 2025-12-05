@@ -7,7 +7,10 @@ Discord bot for processing Magic: The Gathering card requests, migrated from n8n
 - `/request-list` - Submit card requests with automatic parsing and PDF generation
 - `/set-request-channel` - Configure the channel where requests are accepted
 - `/set-task-channel` - Configure the channel where staff see requests
+- `/configure-daily-reminder` - Enable/disable daily reminder messages in request channels
+- `/configure-aging-alerts` - Configure aging request alerts for staff notifications
 - Button interactions for completing, cancelling, and tracking print status
+- Automated daily notifications (reminders and aging alerts) scheduled for 10:00 AM
 
 ## Prerequisites
 
@@ -51,6 +54,15 @@ The application uses separate databases for development and production to preven
    Or if already connected:
    ```sql
    \i scripts/create-dev-schema.sql
+   ```
+
+5. Run the notification settings migration (adds notification configuration columns):
+   ```bash
+   psql -U your_username -h your_host -d mtgrequestbot_dev -f scripts/add-notification-settings.sql
+   ```
+   Or if already connected:
+   ```sql
+   \i scripts/add-notification-settings.sql
    ```
 
 #### Production Database
@@ -134,17 +146,73 @@ After starting the server, register Discord slash commands using the admin endpo
 
 **Register commands for all guilds:**
 ```bash
-curl -X POST http://localhost:3000/admin/register-commands
+curl -X POST http://localhost:3001/admin/register-commands
 ```
 
 **Register commands for a specific guild:**
 ```bash
-curl -X POST "http://localhost:3000/admin/register-commands?guildId=YOUR_GUILD_ID"
+curl -X POST "http://localhost:3001/admin/register-commands?guildId=YOUR_GUILD_ID"
 ```
 
 The endpoint returns a JSON response with registration results, including which commands were registered, skipped (already exist), or encountered errors. The registration is idempotent - running it multiple times won't create duplicate commands.
 
-### 7. Build
+### 7. Configure Notifications
+
+The bot includes an automated notification system that runs daily at 10:00 AM:
+
+1. **Daily Reminders**: Sends rotating reminder messages to users in the request channel, reminding them to use `/request-list` for new card requests.
+
+2. **Aging Alerts**: Sends notifications to staff in the task channel when requests have been pending for longer than the configured number of business days (default: 5 days).
+
+#### Enable Notifications
+
+Use Discord slash commands to configure notifications for your server:
+
+**Enable daily reminders:**
+```
+/configure-daily-reminder enabled:true
+```
+
+**Enable aging alerts (with optional day threshold):**
+```
+/configure-aging-alerts enabled:true days:5
+```
+
+**Disable notifications:**
+```
+/configure-daily-reminder enabled:false
+/configure-aging-alerts enabled:false
+```
+
+#### Manual Testing
+
+You can manually trigger notifications using API endpoints for testing:
+
+**Trigger daily reminders (defaults to guild 754831938035908638):**
+```bash
+curl -X POST http://localhost:3000/admin/trigger-daily-reminders
+```
+
+**Trigger for a specific guild:**
+```bash
+curl -X POST "http://localhost:3000/admin/trigger-daily-reminders?guildId=YOUR_GUILD_ID"
+```
+
+**Trigger aging alerts:**
+```bash
+curl -X POST http://localhost:3000/admin/trigger-aging-alerts
+curl -X POST "http://localhost:3000/admin/trigger-aging-alerts?guildId=YOUR_GUILD_ID"
+```
+
+**Trigger all notifications:**
+```bash
+
+curl -X POST "http://localhost:3000/admin/trigger-all-notifications?guildId=YOUR_GUILD_ID"
+```
+
+**Note:** If no `guildId` query parameter is provided, the endpoints default to guild `754831938035908638`. The scheduled task (10:00 AM) processes all enabled guilds automatically.
+
+### 8. Build
 
 Compile TypeScript:
 
@@ -182,12 +250,13 @@ docker logs -f mtg-request-bot
 
 ```
 src/
-  handlers/          # Command and button handlers
-    buttons/         # Button interaction handlers
-  services/          # External API clients (Discord, OpenAI, Scryfall, DB)
-  middleware/        # Request middleware (signature verification)
-  types/            # TypeScript type definitions
-  utils/            # Helper functions (PDF generation, sanitization)
+  config/           # Configuration files (reminder messages)
+  handlers/         # Command and button handlers
+    buttons/        # Button interaction handlers
+  services/         # External API clients (Discord, OpenAI, Scryfall, DB, scheduler)
+  middleware/       # Request middleware (signature verification)
+  types/           # TypeScript type definitions
+  utils/           # Helper functions (PDF generation, sanitization)
 ```
 
 ## Environment Variables
@@ -210,4 +279,7 @@ src/
 - Discord API calls are rate-limited with 500ms delays
 - Unmatched cards are reported via ephemeral follow-up message
 - Requests are only saved to database after successful processing
+- Daily notifications run automatically at 10:00 AM system time
+- Business day calculations exclude weekends
+- Aging alert messages are automatically split if they exceed Discord's 2000 character limit
 

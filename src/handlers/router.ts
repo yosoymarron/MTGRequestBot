@@ -11,6 +11,8 @@ import { handleSetRequestChannel } from './setRequestChannel';
 import { handleSetTaskChannel } from './setTaskChannel';
 import { handleRequestList } from './requestList';
 import { handleButtonInteraction } from './buttons/buttonRouter';
+import { handleConfigureDailyReminder } from './configureDailyReminder';
+import { handleConfigureAgingAlerts } from './configureAgingAlerts';
 
 export async function router(interaction: Interaction): Promise<any> {
   switch (interaction.type) {
@@ -43,6 +45,12 @@ async function handleCommand(interaction: CommandInteraction): Promise<any> {
 
     case 'request-list':
       return handleRequestList(interaction);
+
+    case 'configure-daily-reminder':
+      return handleConfigureDailyReminder(interaction);
+
+    case 'configure-aging-alerts':
+      return handleConfigureAgingAlerts(interaction);
 
     default:
       return {

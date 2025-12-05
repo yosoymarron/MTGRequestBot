@@ -50,6 +50,40 @@ const COMMAND_DEFINITIONS = [
       },
     ],
   },
+  {
+    name: 'configure-daily-reminder',
+    type: 1, // CHAT_INPUT
+    description: 'Enable or disable daily reminder messages in the request channel.',
+    options: [
+      {
+        name: 'enabled',
+        description: 'Whether to enable daily reminder messages.',
+        type: 5, // BOOLEAN
+        required: true,
+      },
+    ],
+    default_member_permissions: '4', // MANAGE_CHANNELS
+  },
+  {
+    name: 'configure-aging-alerts',
+    type: 1, // CHAT_INPUT
+    description: 'Configure aging request alerts for staff notifications.',
+    options: [
+      {
+        name: 'enabled',
+        description: 'Whether to enable aging request alerts.',
+        type: 5, // BOOLEAN
+        required: true,
+      },
+      {
+        name: 'days',
+        description: 'Number of business days before alerting (1-30, optional).',
+        type: 4, // INTEGER
+        required: false,
+      },
+    ],
+    default_member_permissions: '4', // MANAGE_CHANNELS
+  },
 ];
 
 export interface CommandRegistrationResult {

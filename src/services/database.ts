@@ -64,9 +64,12 @@ export async function upsertGuildSettings(
   settings: {
     requestChannel?: string;
     taskChannel?: string;
+    dailyReminderEnabled?: boolean;
+    agingAlertEnabled?: boolean;
+    agingAlertDays?: number;
   }
 ): Promise<void> {
-  const { requestChannel, taskChannel } = settings;
+  const { requestChannel, taskChannel, dailyReminderEnabled, agingAlertEnabled, agingAlertDays } = settings;
 
   if (requestChannel !== undefined) {
     await pool.query(
@@ -85,6 +88,36 @@ export async function upsertGuildSettings(
        ON CONFLICT (guild_id) 
        DO UPDATE SET task_channel = $2, updated_at = NOW()`,
       [guildId, taskChannel]
+    );
+  }
+
+  if (dailyReminderEnabled !== undefined) {
+    await pool.query(
+      `INSERT INTO mtgrequestbot_settings (guild_id, daily_reminder_enabled, updated_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (guild_id) 
+       DO UPDATE SET daily_reminder_enabled = $2, updated_at = NOW()`,
+      [guildId, dailyReminderEnabled]
+    );
+  }
+
+  if (agingAlertEnabled !== undefined) {
+    await pool.query(
+      `INSERT INTO mtgrequestbot_settings (guild_id, aging_alert_enabled, updated_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (guild_id) 
+       DO UPDATE SET aging_alert_enabled = $2, updated_at = NOW()`,
+      [guildId, agingAlertEnabled]
+    );
+  }
+
+  if (agingAlertDays !== undefined) {
+    await pool.query(
+      `INSERT INTO mtgrequestbot_settings (guild_id, aging_alert_days, updated_at)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (guild_id) 
+       DO UPDATE SET aging_alert_days = $2, updated_at = NOW()`,
+      [guildId, agingAlertDays]
     );
   }
 }
@@ -139,6 +172,34 @@ export async function getRequest(id: number): Promise<Request | null> {
   }
 
   return result.rows[0];
+}
+
+export async function getAllGuildSettings(): Promise<GuildSettings[]> {
+  const result: QueryResult<GuildSettings> = await pool.query(
+    'SELECT * FROM mtgrequestbot_settings'
+  );
+
+  return result.rows;
+}
+
+export async function getAgedPendingRequests(
+  guildId: string,
+  cutoffDate: string
+): Promise<Request[]> {
+  // cutoffDate is in format YYYY-MM-DD HH:MM:SS in UTC representing the end of the cutoff day
+  // We want tasks created on or before this timestamp (tasks that are at least X business days old)
+  // PostgreSQL will handle the timestamp comparison correctly
+  const result: QueryResult<Request> = await pool.query(
+    `SELECT id, interaction_id, guild_id, channel_id, user_id, status, created_at
+     FROM mtgrequestbot_requests 
+     WHERE status = 'Pending' 
+       AND created_at <= $1::timestamp
+       AND guild_id = $2
+     ORDER BY created_at ASC`,
+    [cutoffDate, guildId]
+  );
+
+  return result.rows;
 }
 
 // Close pool on process exit

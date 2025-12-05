@@ -2,6 +2,9 @@ export interface GuildSettings {
   guild_id: string;
   request_channel?: string;
   task_channel?: string;
+  daily_reminder_enabled?: boolean;
+  aging_alert_enabled?: boolean;
+  aging_alert_days?: number;
   updated_at: Date;
 }
 

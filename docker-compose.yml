@@ -13,12 +13,12 @@ services:
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
       - DISCORD_APPLICATION_ID=${DISCORD_APPLICATION_ID}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - PORT=3000
+      - PORT=3001
       - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
     networks:
       - app-network
     ports:
-      - "3000:3000"
+      - "3001:3001"
     depends_on:
       - postgres
 
