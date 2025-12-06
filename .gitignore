@@ -6,3 +6,4 @@ dist/
 *.pdf
 n8n MTG Request Bot.json
 notes.md
+n8n_workflows/

@@ -109,7 +109,7 @@ DATABASE_URL_PROD=postgresql://user:pass@host:5432/mtgrequestbot_prod
 # DATABASE_URL=postgresql://user:pass@host:5432/dbname
 
 # Server
-PORT=3000
+PORT=3001
 NODE_ENV=development
 ```
 
