@@ -22,14 +22,23 @@ function generateHTML(data: PDFData): string {
     const colors = card.colors || '';
     const type = card.primary_type || '';
 
+    // Convert emoji checkmarks to HTML checkboxes
+    const over5Checkbox = isOver5Dollars === '✅' 
+      ? '<input type="checkbox" checked disabled style="width: 15px; height: 15px; margin: 0; cursor: default;">'
+      : '<input type="checkbox" disabled style="width: 15px; height: 15px; margin: 0; cursor: default;">';
+    
+    const standardLegalCheckbox = legalitiesStandard === '✅'
+      ? '<input type="checkbox" checked disabled style="width: 15px; height: 15px; margin: 0; cursor: default;">'
+      : '<input type="checkbox" disabled style="width: 15px; height: 15px; margin: 0; cursor: default;">';
+
     cardsHtml += `
         <tr>
             <td>${card.qty}</td>
             <td>${card.name}</td>
             <td>${card.foil}</td>
             <td>${specificPrint}</td>
-            <td>${isOver5Dollars}</td>
-            <td>${legalitiesStandard}</td>
+            <td style="text-align: center;">${over5Checkbox}</td>
+            <td style="text-align: center;">${standardLegalCheckbox}</td>
             <td>${type}</td>
             <td>${cmc}</td>
             <td>${colors}</td>
@@ -60,6 +69,15 @@ function generateHTML(data: PDFData): string {
         th { background-color: #f2f2f2; font-weight: bold; }
         td { font-weight: bold; }
         tr:nth-child(even) { background-color: #f9f9f9; }
+        input[type="checkbox"] { 
+            -webkit-appearance: checkbox;
+            -moz-appearance: checkbox;
+            appearance: checkbox;
+            width: 15px;
+            height: 15px;
+            margin: 0;
+            vertical-align: middle;
+        }
         .aux-info { margin-top: 20px; border-top: 2px solid #2c3e50; padding-top: 10px; }
         .aux-info p { font-style: italic; color: #555; }
     </style>
