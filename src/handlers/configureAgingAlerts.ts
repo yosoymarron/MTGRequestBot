@@ -15,10 +15,10 @@ export async function handleConfigureAgingAlerts(
     };
   }
 
-  const enabled = interaction.data.options?.[0]?.value as unknown as boolean;
+  const enabledValue = interaction.data.options?.[0]?.value;
   const days = interaction.data.options?.[1]?.value as number | undefined;
 
-  if (enabled === undefined) {
+  if (enabledValue === undefined) {
     return {
       type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
       data: {
@@ -26,6 +26,18 @@ export async function handleConfigureAgingAlerts(
         flags: 64, // Ephemeral
       },
     };
+  }
+
+  // Convert value to boolean (handles string, number, or boolean)
+  let enabled: boolean;
+  if (typeof enabledValue === 'boolean') {
+    enabled = enabledValue;
+  } else if (typeof enabledValue === 'string') {
+    enabled = enabledValue.toLowerCase() === 'true';
+  } else if (typeof enabledValue === 'number') {
+    enabled = enabledValue !== 0;
+  } else {
+    enabled = false;
   }
 
   const settings: { agingAlertEnabled: boolean; agingAlertDays?: number } = {

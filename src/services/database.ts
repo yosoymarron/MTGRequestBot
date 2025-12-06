@@ -29,7 +29,7 @@ const pool = new Pool({
 });
 
 // Test database connection on startup
-pool.on('error', (err) => {
+pool.on('error', (err: Error) => {
   console.error('Unexpected database pool error:', err);
 });
 

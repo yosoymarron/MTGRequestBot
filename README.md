@@ -222,22 +222,186 @@ npm run build
 
 ## Deployment
 
-### Docker Build (on Raspberry Pi)
+### Initial Setup on Raspberry Pi
 
-1. Copy your code to the Raspberry Pi
-2. Ensure `.env` file is configured
-3. Build and run:
+#### 1. Set Up SSH Key for Git Authentication
+
+Since the repository is private, you'll need to authenticate with Git using SSH keys.
+
+**Generate SSH Key on Raspberry Pi:**
 
 ```bash
+# SSH into your Raspberry Pi
+ssh pi@your-pi-ip
+
+# Generate a new SSH key
+ssh-keygen -t ed25519 -C "pi-deployment"
+# Press Enter to accept default location (~/.ssh/id_ed25519)
+# Optionally set a passphrase (recommended for security, or press Enter for no passphrase)
+```
+
+**Add SSH Key to Your Git Provider:**
+
+1. Display your public key:
+   ```bash
+   cat ~/.ssh/id_ed25519.pub
+   # Copy the entire output
+   ```
+
+2. Add the key to your Git provider:
+   - **GitHub**: Settings → SSH and GPG keys → New SSH key → Paste and save
+   - **GitLab**: Preferences → SSH Keys → Add key → Paste and save
+   - **Bitbucket**: Personal Settings → SSH keys → Add key → Paste and save
+
+**Test SSH Connection:**
+
+```bash
+# For GitHub
+ssh -T git@github.com
+
+# For GitLab
+ssh -T git@gitlab.com
+```
+
+#### 2. Clone the Repository
+
+```bash
+# Navigate to where you want the project
+cd ~/projects  # or wherever you prefer
+
+# Clone using SSH URL (replace with your actual repository URL)
+git clone git@github.com:yourusername/your-repo.git mtg-request-bot
+cd mtg-request-bot
+```
+
+#### 3. Configure Environment Variables
+
+```bash
+# Create .env file from template
+cp env.example .env
+
+# Edit with production values
+nano .env
+```
+
+**Important:** Set `NODE_ENV=production` in your `.env` file to use the production database.
+
+#### 4. Initial Docker Build and Run
+
+```bash
+# Build the Docker image
 docker-compose build
+
+# Start the container
+docker-compose up -d
+
+# Monitor logs to verify it's running
+docker logs -f mtg-request-bot
+```
+
+### Redeployment (Updating Code)
+
+When you have updates or changes to your codebase:
+
+#### Step 1: Pull Latest Code
+
+```bash
+# SSH into your Raspberry Pi
+ssh pi@your-pi-ip
+
+# Navigate to project directory
+cd ~/mtg-request-bot  # or wherever you cloned it
+
+# Pull the latest changes from Git
+git pull origin main  # or 'master' depending on your default branch
+```
+
+#### Step 2: Rebuild and Restart Container
+
+Since the Dockerfile builds TypeScript inside the container, you need to rebuild:
+
+```bash
+# Stop the current container
+docker-compose down
+
+# Rebuild the image (this will recompile TypeScript with your changes)
+docker-compose build
+
+# Start it back up
 docker-compose up -d
 ```
 
-4. Monitor logs:
+**Or as a one-liner:**
+```bash
+docker-compose down && docker-compose build && docker-compose up -d
+```
+
+#### Step 3: Verify Deployment
 
 ```bash
+# Check container status
+docker ps
+
+# View logs to ensure it started correctly
 docker logs -f mtg-request-bot
 ```
+
+#### Optional: Create a Deployment Script
+
+For convenience, you can create a deployment script:
+
+```bash
+# Create deploy script
+nano ~/mtg-request-bot/deploy.sh
+```
+
+Add this content:
+```bash
+#!/bin/bash
+set -e  # Exit on error
+
+cd ~/mtg-request-bot
+
+echo "Pulling latest code..."
+git pull origin main
+
+echo "Rebuilding Docker image..."
+docker-compose build
+
+echo "Restarting container..."
+docker-compose down
+docker-compose up -d
+
+echo "Checking logs..."
+sleep 2
+docker logs --tail 50 mtg-request-bot
+
+echo "Deployment complete!"
+```
+
+Make it executable:
+```bash
+chmod +x ~/mtg-request-bot/deploy.sh
+```
+
+Then redeploy with:
+```bash
+~/mtg-request-bot/deploy.sh
+```
+
+### Important Notes
+
+- **Environment Variables**: Your `.env` file is not copied into the Docker image. If you change `.env`, you only need to restart the container (no rebuild needed):
+  ```bash
+  docker-compose restart
+  ```
+
+- **Database Migrations**: If you have new database schema changes, run them separately:
+  ```bash
+  psql -U your_username -h your_host -d mtgrequestbot_prod -f scripts/new-migration.sql
+  ```
+
+- **Container Auto-Restart**: The container will automatically restart if it crashes (thanks to `restart: unless-stopped` in docker-compose.yml), but you still need to rebuild when code changes.
 
 ### Production Switchover
 

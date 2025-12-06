@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   mtg-request-bot:
     build: .
@@ -19,28 +17,9 @@ services:
       - app-network
     ports:
       - "3001:3001"
-    depends_on:
-      - postgres
 
-  postgres:
-    # Your existing PostgreSQL service configuration
-    # This assumes you already have a postgres service defined
-    # If not, uncomment and configure:
-    # image: postgres:15
-    # container_name: mtg-postgres
-    # environment:
-    #   - POSTGRES_DB=${POSTGRES_DB}
-    #   - POSTGRES_USER=${POSTGRES_USER}
-    #   - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-    # volumes:
-    #   - postgres_data:/var/lib/postgresql/data
-    # networks:
-    #   - app-network
 
 networks:
   app-network:
     external: true  # Use existing network, or set to false to create new
-
-# volumes:
-#   postgres_data:
 

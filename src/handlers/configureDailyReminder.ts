@@ -15,8 +15,8 @@ export async function handleConfigureDailyReminder(
     };
   }
 
-  const enabled = interaction.data.options?.[0]?.value as boolean;
-  if (enabled === undefined) {
+  const enabledValue = interaction.data.options?.[0]?.value;
+  if (enabledValue === undefined) {
     return {
       type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
       data: {
@@ -24,6 +24,18 @@ export async function handleConfigureDailyReminder(
         flags: 64, // Ephemeral
       },
     };
+  }
+
+  // Convert value to boolean (handles string, number, or boolean)
+  let enabled: boolean;
+  if (typeof enabledValue === 'boolean') {
+    enabled = enabledValue;
+  } else if (typeof enabledValue === 'string') {
+    enabled = enabledValue.toLowerCase() === 'true';
+  } else if (typeof enabledValue === 'number') {
+    enabled = enabledValue !== 0;
+  } else {
+    enabled = false;
   }
 
   await upsertGuildSettings(guildId, { dailyReminderEnabled: enabled });

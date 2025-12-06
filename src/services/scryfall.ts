@@ -38,7 +38,8 @@ export async function fetchCardData(
       throw new Error(`Scryfall API error: ${response.status}`);
     }
 
-    const card: ScryfallCard = await response.json();
+    const cardData = await response.json();
+    const card = cardData as ScryfallCard;
 
     if (card.object !== 'card') {
       return null;
