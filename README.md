@@ -10,7 +10,7 @@ Discord bot for processing Magic: The Gathering card requests, migrated from n8n
 - `/configure-daily-reminder` - Enable/disable daily reminder messages in request channels
 - `/configure-aging-alerts` - Configure aging request alerts for staff notifications
 - Button interactions for completing, cancelling, and tracking print status
-- Automated daily notifications (reminders and aging alerts) scheduled for 10:00 AM
+- Automated daily notifications (reminders and aging alerts) scheduled for 10:00 AM EST (15:00 UTC)
 
 ## Prerequisites
 
@@ -158,7 +158,7 @@ The endpoint returns a JSON response with registration results, including which 
 
 ### 7. Configure Notifications
 
-The bot includes an automated notification system that runs daily at 10:00 AM:
+The bot includes an automated notification system that runs daily at 10:00 AM EST (15:00 UTC):
 
 1. **Daily Reminders**: Sends rotating reminder messages to users in the request channel, reminding them to use `/request-list` for new card requests.
 
@@ -210,7 +210,7 @@ curl -X POST "http://localhost:3000/admin/trigger-aging-alerts?guildId=YOUR_GUIL
 curl -X POST "http://localhost:3000/admin/trigger-all-notifications?guildId=YOUR_GUILD_ID"
 ```
 
-**Note:** If no `guildId` query parameter is provided, the endpoints default to guild `754831938035908638`. The scheduled task (10:00 AM) processes all enabled guilds automatically.
+**Note:** If no `guildId` query parameter is provided, the endpoints default to guild `754831938035908638`. The scheduled task (10:00 AM EST / 15:00 UTC) processes all enabled guilds automatically.
 
 ### 8. Build
 
@@ -443,7 +443,7 @@ src/
 - Discord API calls are rate-limited with 500ms delays
 - Unmatched cards are reported via ephemeral follow-up message
 - Requests are only saved to database after successful processing
-- Daily notifications run automatically at 10:00 AM system time
+- Daily notifications run automatically at 10:00 AM EST (15:00 UTC)
 - Business day calculations exclude weekends
 - Aging alert messages are automatically split if they exceed Discord's 2000 character limit
 

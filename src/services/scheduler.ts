@@ -342,10 +342,10 @@ export async function sendAgingNotifications(guildId?: string | null): Promise<v
 }
 
 /**
- * Main scheduled task that runs daily at 10:00 AM
+ * Main scheduled task that runs daily at 10:00 AM EST (15:00 UTC)
  */
 async function runDailyTasks(): Promise<void> {
-  console.log('[Scheduler] Running daily tasks at 10:00 AM');
+  console.log('[Scheduler] Running daily tasks at 10:00 AM EST (15:00 UTC)');
   
   // Run both tasks in parallel
   // Pass null to process all enabled guilds (not just the default)
@@ -361,15 +361,15 @@ async function runDailyTasks(): Promise<void> {
  * Initialize and start the scheduler
  */
 export function initializeScheduler(): void {
-  // Schedule daily task at 10:00 AM system time
+  // Schedule daily task at 10:00 AM EST (15:00 UTC)
   // Cron format: minute hour day month weekday
-  // '0 10 * * *' = 10:00 AM every day
-  cron.schedule('0 10 * * *', () => {
+  // '0 15 * * *' = 15:00 UTC (10:00 AM EST) every day
+  cron.schedule('0 15 * * *', () => {
     runDailyTasks().catch((error) => {
       console.error('[Scheduler] Unhandled error in scheduled task:', error);
     });
   });
 
-  console.log('[Scheduler] Initialized - Daily tasks scheduled for 10:00 AM');
+  console.log('[Scheduler] Initialized - Daily tasks scheduled for 10:00 AM EST (15:00 UTC)');
 }
 
