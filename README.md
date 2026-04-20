@@ -463,7 +463,7 @@ src/
 
 ## Notes
 
-- The bot uses Puppeteer for PDF generation (replaces Gotenberg)
+- The bot uses Puppeteer for PDF generation (replaces Gotenberg). Checklist columns use colored text (not native form controls) so “yes” indicators stay green in the exported PDF.
 - Card metadata comes from a local PostgreSQL cache populated from Scryfall bulk data (see **Scryfall bulk data** under Database Setup), not per-request Scryfall API calls
 - Discord API calls are rate-limited with 500ms delays
 - Unmatched cards are reported via ephemeral follow-up message

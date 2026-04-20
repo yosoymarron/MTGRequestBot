@@ -22,14 +22,16 @@ function generateHTML(data: PDFData): string {
     const colors = card.colors || '';
     const type = card.primary_type || '';
 
-    // Convert emoji checkmarks to HTML checkboxes
-    const over5Checkbox = isOver5Dollars === '✅' 
-      ? '<input type="checkbox" checked disabled style="width: 15px; height: 15px; margin: 0; cursor: default;">'
-      : '<input type="checkbox" disabled style="width: 15px; height: 15px; margin: 0; cursor: default;">';
-    
-    const standardLegalCheckbox = legalitiesStandard === '✅'
-      ? '<input type="checkbox" checked disabled style="width: 15px; height: 15px; margin: 0; cursor: default;">'
-      : '<input type="checkbox" disabled style="width: 15px; height: 15px; margin: 0; cursor: default;">';
+    // Text glyphs + CSS color (native checkboxes print grayscale in Chromium PDF)
+    const over5Mark =
+      isOver5Dollars === '✅'
+        ? '<span class="pdf-check pdf-check--yes">✓</span>'
+        : '<span class="pdf-check pdf-check--no">—</span>';
+
+    const standardLegalMark =
+      legalitiesStandard === '✅'
+        ? '<span class="pdf-check pdf-check--yes">✓</span>'
+        : '<span class="pdf-check pdf-check--no">—</span>';
 
     cardsHtml += `
         <tr>
@@ -37,8 +39,8 @@ function generateHTML(data: PDFData): string {
             <td>${card.name}</td>
             <td>${card.foil}</td>
             <td>${specificPrint}</td>
-            <td style="text-align: center;">${over5Checkbox}</td>
-            <td style="text-align: center;">${standardLegalCheckbox}</td>
+            <td style="text-align: center;">${over5Mark}</td>
+            <td style="text-align: center;">${standardLegalMark}</td>
             <td>${type}</td>
             <td>${cmc}</td>
             <td>${colors}</td>
@@ -59,7 +61,14 @@ function generateHTML(data: PDFData): string {
 <head>
     <title>Customer Order</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; color: #333; font-size: 10px; }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            color: #333;
+            font-size: 10px;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
         .header { margin-bottom: 10px; }
         .header p { margin: 5px 0; }
         h1 { color: #2c3e50; font-size: 16px; }
@@ -69,15 +78,16 @@ function generateHTML(data: PDFData): string {
         th { background-color: #f2f2f2; font-weight: bold; }
         td { font-weight: bold; }
         tr:nth-child(even) { background-color: #f9f9f9; }
-        input[type="checkbox"] { 
-            -webkit-appearance: checkbox;
-            -moz-appearance: checkbox;
-            appearance: checkbox;
-            width: 15px;
-            height: 15px;
-            margin: 0;
+        .pdf-check {
+            display: inline-block;
+            min-width: 1.1em;
+            text-align: center;
+            font-size: 13px;
+            line-height: 1;
             vertical-align: middle;
         }
+        .pdf-check--yes { color: #16a34a; font-weight: bold; }
+        .pdf-check--no { color: #9ca3af; }
         .aux-info { margin-top: 20px; border-top: 2px solid #2c3e50; padding-top: 10px; }
         .aux-info p { font-style: italic; color: #555; }
     </style>
