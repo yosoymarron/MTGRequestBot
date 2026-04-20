@@ -259,6 +259,7 @@ ssh pi@your-pi-ip
 ssh-keygen -t ed25519 -C "pi-deployment"
 # Press Enter to accept default location (~/.ssh/id_ed25519)
 # Optionally set a passphrase (recommended for security, or press Enter for no passphrase)
+Passphrase is: Color + Number
 ```
 
 **Add SSH Key to Your Git Provider:**
