@@ -11,6 +11,7 @@ Discord bot for processing Magic: The Gathering card requests, migrated from n8n
 - `/configure-aging-alerts` - Configure aging request alerts for staff notifications
 - Button interactions for completing, cancelling, and tracking print status
 - Automated daily notifications (reminders and aging alerts) scheduled for 10:00 AM EST (15:00 UTC)
+- Local Scryfall card cache (daily bulk download/import) so `/request-list` does not call the Scryfall API for every card
 
 ## Prerequisites
 
@@ -64,6 +65,26 @@ The application uses separate databases for development and production to preven
    ```sql
    \i scripts/add-notification-settings.sql
    ```
+
+6. Run the Scryfall bulk cards migration (adds `pg_trgm` and tables used for local card lookup):
+   ```bash
+   psql -U your_username -h your_host -d mtgrequestbot_dev -f scripts/add-scryfall-bulk-cards.sql
+   ```
+   Or if already connected:
+   ```sql
+   \i scripts/add-scryfall-bulk-cards.sql
+   ```
+
+#### Scryfall bulk data
+
+Card metadata for PDFs is loaded from a local copy of Scryfall’s **default_cards** bulk file (English, paper-print rows only), not from `api.scryfall.com` per request.
+
+- **Initial load:** After building (`npm run build`), run `npm run scryfall:bulk-sync`. This downloads the gzip from Scryfall, imports it into `mtgrequestbot_scryfall_cards`, and keeps up to **three** timestamped `.json.gz` files under `data/scryfall-bulk/` (configurable `SCRYFALL_BULK_DIR`).
+- **Schedule:** The server runs a daily job (default **04:00 UTC**; override with `SCRYFALL_BULK_CRON`) to refresh the cache.
+- **Disk:** Each download is on the order of tens to low hundreds of MB compressed; only three files are retained on disk.
+- **Database:** Requires the `pg_trgm` extension (created by the migration). If the cache table is empty at startup, the server logs a warning until you run `scryfall:bulk-sync` or wait for the scheduled job.
+
+For development without a prior `npm run build`, you can run the sync with `npx tsx src/cli/scryfallBulkSync.ts` (same env vars as the app).
 
 #### Production Database
 
@@ -414,10 +435,11 @@ Then redeploy with:
 
 ```
 src/
+  cli/              # One-off scripts (e.g. Scryfall bulk sync)
   config/           # Configuration files (reminder messages)
   handlers/         # Command and button handlers
     buttons/        # Button interaction handlers
-  services/         # External API clients (Discord, OpenAI, Scryfall, DB, scheduler)
+  services/         # External API clients (Discord, OpenAI, Scryfall cache, DB, scheduler)
   middleware/       # Request middleware (signature verification)
   types/           # TypeScript type definitions
   utils/           # Helper functions (PDF generation, sanitization)
@@ -435,11 +457,13 @@ src/
 - `PORT` - Server port (default: 3000)
 - `NODE_ENV` - Environment (`development` or `production`). Controls which database URL is used.
 - `PUPPETEER_EXECUTABLE_PATH` - Path to Chromium (set automatically in Docker)
+- `SCRYFALL_BULK_DIR` - Optional. Directory for downloaded Scryfall bulk `.json.gz` files (default: `data/scryfall-bulk` under the project root). Only the three newest files are kept.
+- `SCRYFALL_BULK_CRON` - Optional. Cron schedule for daily bulk download/import (default: `0 4 * * *`, 04:00 UTC).
 
 ## Notes
 
 - The bot uses Puppeteer for PDF generation (replaces Gotenberg)
-- Scryfall API calls are rate-limited with 100ms delays
+- Card metadata comes from a local PostgreSQL cache populated from Scryfall bulk data (see **Scryfall bulk data** under Database Setup), not per-request Scryfall API calls
 - Discord API calls are rate-limited with 500ms delays
 - Unmatched cards are reported via ephemeral follow-up message
 - Requests are only saved to database after successful processing

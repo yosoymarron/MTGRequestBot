@@ -7,6 +7,7 @@ import {
   registerCommandsForGuild,
   getAllGuilds,
 } from './services/commandRegistration';
+import { getScryfallCardCount } from './services/database';
 import {
   initializeScheduler,
   sendDailyReminders,
@@ -223,14 +224,27 @@ app.register(async function (fastify) {
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
-app.listen({ port: PORT, host: '0.0.0.0' }, (err, address) => {
+app.listen({ port: PORT, host: '0.0.0.0' }, async (err, address) => {
   if (err) {
     app.log.error(err);
     process.exit(1);
   }
   app.log.info(`Server listening on ${address}`);
-  
-  // Initialize the scheduler for daily notifications
+
+  try {
+    const n = await getScryfallCardCount();
+    if (n === 0) {
+      app.log.warn(
+        'Scryfall card cache (mtgrequestbot_scryfall_cards) is empty. Run `npm run scryfall:bulk-sync` or wait for the scheduled bulk import; card lookups will show "no match" until data is loaded.'
+      );
+    }
+  } catch (e) {
+    app.log.warn(
+      { err: e },
+      'Could not read Scryfall card cache. Ensure scripts/add-scryfall-bulk-cards.sql was applied and the table exists.'
+    );
+  }
+
   initializeScheduler();
 });
 

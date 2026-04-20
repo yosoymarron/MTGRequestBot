@@ -24,7 +24,7 @@ if (!databaseUrl) {
   );
 }
 
-const pool = new Pool({
+export const pool = new Pool({
   connectionString: databaseUrl,
 });
 
@@ -180,6 +180,13 @@ export async function getAllGuildSettings(): Promise<GuildSettings[]> {
   );
 
   return result.rows;
+}
+
+export async function getScryfallCardCount(): Promise<number> {
+  const result = await pool.query<{ c: string }>(
+    'SELECT count(*)::text AS c FROM mtgrequestbot_scryfall_cards'
+  );
+  return parseInt(result.rows[0]?.c ?? '0', 10) || 0;
 }
 
 export async function getAgedPendingRequests(

@@ -1,5 +1,10 @@
 import * as cron from 'node-cron';
-import { getAllGuildSettings, getAgedPendingRequests } from './database';
+import {
+  getAllGuildSettings,
+  getAgedPendingRequests,
+  pool,
+} from './database';
+import { runScryfallBulkSync } from './scryfallBulkSync';
 import { sendDiscordMessage, getChannelMessages } from './discord';
 import { DAILY_REMINDER_MESSAGES } from '../config/messages';
 
@@ -342,6 +347,20 @@ export async function sendAgingNotifications(guildId?: string | null): Promise<v
 }
 
 /**
+ * Download and import Scryfall default_cards bulk data (scheduled daily).
+ */
+export async function runScryfallBulkSyncJob(): Promise<void> {
+  try {
+    console.log('[Scheduler] Starting Scryfall bulk sync');
+    await runScryfallBulkSync(pool);
+    console.log('[Scheduler] Scryfall bulk sync completed');
+  } catch (error: any) {
+    console.error('[Scheduler] Scryfall bulk sync failed:', error?.message || error);
+    throw error;
+  }
+}
+
+/**
  * Main scheduled task that runs daily at 10:00 AM EST (15:00 UTC)
  */
 async function runDailyTasks(): Promise<void> {
@@ -370,6 +389,19 @@ export function initializeScheduler(): void {
     });
   });
 
-  console.log('[Scheduler] Initialized - Daily tasks scheduled for 10:00 AM EST (15:00 UTC)');
+  const bulkCron =
+    process.env.SCRYFALL_BULK_CRON && process.env.SCRYFALL_BULK_CRON.trim() !== ''
+      ? process.env.SCRYFALL_BULK_CRON
+      : '0 4 * * *';
+
+  cron.schedule(bulkCron, () => {
+    runScryfallBulkSyncJob().catch((error) => {
+      console.error('[Scheduler] Unhandled error in Scryfall bulk sync:', error);
+    });
+  });
+
+  console.log(
+    `[Scheduler] Initialized - Daily tasks at 10:00 AM EST (15:00 UTC); Scryfall bulk sync at cron "${bulkCron}"`
+  );
 }
 

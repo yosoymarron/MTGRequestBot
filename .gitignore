@@ -1,5 +1,6 @@
 node_modules/
 dist/
+data/scryfall-bulk/
 .env
 *.log
 .DS_Store
