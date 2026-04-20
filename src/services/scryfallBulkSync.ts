@@ -15,7 +15,6 @@ const streamArray = require('stream-json/streamers/stream-array.js');
 const BULK_DATA_URL = 'https://api.scryfall.com/bulk-data';
 const BATCH_SIZE = 2500;
 const FILE_PREFIX = 'default-cards-';
-const FILE_SUFFIX = '.json.gz';
 const KEEP_DOWNLOADS = 3;
 
 export interface ScryfallBulkRow {
@@ -193,12 +192,12 @@ async function ingestFileToStaging(
 ): Promise<void> {
   await truncateStaging(pool);
   const writer = new StagingInsertWriter(pool);
-  const jsonPipeline = chain([
-    fsSync.createReadStream(filePath),
-    zlib.createGunzip(),
-    parser(),
-    streamArray(),
-  ]);
+  const steps: any[] = [fsSync.createReadStream(filePath)];
+  if (filePath.endsWith('.gz')) {
+    steps.push(zlib.createGunzip());
+  }
+  steps.push(parser(), streamArray());
+  const jsonPipeline = chain(steps);
   await pipeline(jsonPipeline, writer);
 }
 
@@ -219,7 +218,10 @@ async function downloadDefaultCardsToFile(
   await pipeline(nodeReadable, fsSync.createWriteStream(destPath));
 }
 
-async function fetchDefaultCardsDownloadUri(): Promise<string> {
+async function fetchDefaultCardsDownloadInfo(): Promise<{
+  uri: string;
+  extension: '.json.gz' | '.json';
+}> {
   const res = await fetch(BULK_DATA_URL, {
     headers: { 'User-Agent': 'MTGRequestBot/1.0 (bulk sync)' },
   });
@@ -227,13 +229,24 @@ async function fetchDefaultCardsDownloadUri(): Promise<string> {
     throw new Error(`Bulk manifest failed: ${res.status} ${res.statusText}`);
   }
   const manifest = (await res.json()) as {
-    data?: Array<{ type?: string; download_uri?: string }>;
+    data?: Array<{
+      type?: string;
+      download_uri?: string;
+      compressed_uri?: string;
+    }>;
   };
   const entry = manifest.data?.find((d) => d.type === 'default_cards');
-  if (!entry?.download_uri) {
+  // Prefer the compressed gzip when available to reduce bandwidth/storage.
+  if (entry?.compressed_uri) {
+    return { uri: entry.compressed_uri, extension: '.json.gz' };
+  }
+  if (entry?.download_uri) {
+    return { uri: entry.download_uri, extension: '.json' };
+  }
+  if (!entry) {
     throw new Error('Bulk manifest: default_cards entry not found');
   }
-  return entry.download_uri;
+  throw new Error('Bulk manifest: default_cards has no download uri');
 }
 
 function timestampForFilename(): string {
@@ -249,9 +262,10 @@ export async function pruneOldBulkFiles(bulkDir: string): Promise<void> {
   } catch {
     return;
   }
-  const matches = entries.filter(
-    (f) => f.startsWith(FILE_PREFIX) && f.endsWith(FILE_SUFFIX)
-  );
+  const matches = entries.filter((f) => {
+    if (!f.startsWith(FILE_PREFIX)) return false;
+    return f.endsWith('.json.gz') || f.endsWith('.json');
+  });
   const withMtime = await Promise.all(
     matches.map(async (name) => {
       const full = path.join(bulkDir, name);
@@ -277,11 +291,11 @@ export async function runScryfallBulkSync(pool: Pool): Promise<void> {
   const bulkDir = getScryfallBulkDir();
   await fs.mkdir(bulkDir, { recursive: true });
 
-  const downloadUri = await fetchDefaultCardsDownloadUri();
-  const destName = `${FILE_PREFIX}${timestampForFilename()}${FILE_SUFFIX}`;
+  const { uri, extension } = await fetchDefaultCardsDownloadInfo();
+  const destName = `${FILE_PREFIX}${timestampForFilename()}${extension}`;
   const destPath = path.join(bulkDir, destName);
 
-  await downloadDefaultCardsToFile(downloadUri, destPath);
+  await downloadDefaultCardsToFile(uri, destPath);
   await ingestFileToStaging(pool, destPath);
   await swapStagingToMain(pool);
   await pruneOldBulkFiles(bulkDir);
