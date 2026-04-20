@@ -122,7 +122,51 @@ export async function upsertGuildSettings(
   }
 }
 
-export async function createRequest(
+/** Keep in sync with scripts/fix-sequences-after-data-copy.sql */
+const SYNC_REQUEST_ID_SEQUENCES_SQL = `
+DO $$
+DECLARE
+  max_id bigint;
+  r record;
+  n int := 0;
+BEGIN
+  SELECT COALESCE(MAX(id), 0) INTO max_id FROM public.mtgrequestbot_requests;
+
+  FOR r IN
+    SELECT c.oid::regclass AS seq_regclass, c.relname AS seq_name
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE c.relkind = 'S'
+      AND n.nspname = 'public'
+      AND c.relname LIKE 'mtgrequestbot_requests%'
+  LOOP
+    PERFORM setval(r.seq_regclass::text::regclass, max_id, true);
+    n := n + 1;
+  END LOOP;
+
+  IF n = 0 THEN
+    RAISE EXCEPTION
+      'No sequences found in public matching mtgrequestbot_requests%%';
+  END IF;
+END $$;
+`;
+
+/**
+ * After bulk COPY/restores, SERIAL sequences can lag behind MAX(id). Bumps every
+ * public sequence whose name starts with mtgrequestbot_requests.
+ */
+export async function syncMtgrequestbotRequestsIdSequences(): Promise<void> {
+  await pool.query(SYNC_REQUEST_ID_SEQUENCES_SQL);
+}
+
+export async function getCurrentDatabaseName(): Promise<string> {
+  const r = await pool.query<{ db: string }>(
+    'SELECT current_database() AS db'
+  );
+  return r.rows[0].db;
+}
+
+async function insertRequestRow(
   guildId: string,
   interactionToken: string,
   interactionId: string,
@@ -149,6 +193,47 @@ export async function createRequest(
   );
 
   return result.rows[0].id;
+}
+
+function isRequestsPkeyDup(err: unknown): boolean {
+  const e = err as { code?: string; constraint?: string };
+  return e?.code === '23505' && e?.constraint === 'mtgrequestbot_requests_pkey';
+}
+
+export async function createRequest(
+  guildId: string,
+  interactionToken: string,
+  interactionId: string,
+  channelId: string,
+  userId: string,
+  requestPayload: object,
+  cardsRequested: ParsedCardRequest
+): Promise<number> {
+  try {
+    return await insertRequestRow(
+      guildId,
+      interactionToken,
+      interactionId,
+      channelId,
+      userId,
+      requestPayload,
+      cardsRequested
+    );
+  } catch (err) {
+    if (!isRequestsPkeyDup(err)) {
+      throw err;
+    }
+    await syncMtgrequestbotRequestsIdSequences();
+    return await insertRequestRow(
+      guildId,
+      interactionToken,
+      interactionId,
+      channelId,
+      userId,
+      requestPayload,
+      cardsRequested
+    );
+  }
 }
 
 export async function updateRequestStatus(

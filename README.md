@@ -90,6 +90,31 @@ For development without a prior `npm run build`, you can run the sync with `npx 
 
 Your production database should already exist with the same schema. If you need to verify or recreate it, use the same `scripts/create-dev-schema.sql` script (the script uses `CREATE TABLE IF NOT EXISTS` so it's safe to run multiple times).
 
+**After copying or restoring rows with existing ids** (for example importing from another database): PostgreSQL `SERIAL` sequences are not updated automatically. The next insert can try to reuse an id and fail with `duplicate key value violates unique constraint "mtgrequestbot_requests_pkey"`. Run:
+
+```bash
+psql "$DATABASE_URL_PROD" -f scripts/fix-sequences-after-data-copy.sql
+```
+
+(Adjust the connection string as needed—it must be the **same** DB the app uses.)
+
+The script sets **every** `public` sequence whose name starts with `mtgrequestbot_requests` to `MAX(id)`, because restores sometimes attach the column default to a differently named sequence (for example `…_id_seq` vs `…_id_seq1`), while `pg_get_serial_sequence` alone can update the wrong one.
+
+**If it still duplicates keys after running SQL by hand**, the app and DBeaver are often pointed at **different** databases (different host, port, or DB name). The server **syncs id sequences on startup** using the same pool as normal queries, and logs `currentDatabase` in a line like `Synced mtgrequestbot_requests id sequence(s) to MAX(id) for this connection`. Compare that database name in production logs to the database you select in DBeaver.
+
+With Docker Compose, production uses `NODE_ENV=production` and therefore `DATABASE_URL_PROD` unless it is unset—then `DATABASE_URL` is used. Ensure the URL that resolves to `mtgrequestbot_prod` is the one in the container environment, not only in a local `.env` you use for DBeaver.
+
+To inspect which sequence the `id` column uses:
+
+```sql
+SELECT pg_get_expr(d.adbin, d.adrelid) AS id_default
+FROM pg_attrdef d
+JOIN pg_attribute a ON a.attrelid = d.adrelid AND a.attnum = d.adnum
+JOIN pg_class c ON c.oid = a.attrelid
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public' AND c.relname = 'mtgrequestbot_requests' AND a.attname = 'id';
+```
+
 **Note:** The application automatically selects the correct database based on `NODE_ENV`:
 - `NODE_ENV=development` → uses `DATABASE_URL_DEV`
 - `NODE_ENV=production` → uses `DATABASE_URL_PROD`
