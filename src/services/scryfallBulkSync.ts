@@ -23,8 +23,8 @@ export interface ScryfallBulkRow {
   lang: string;
   released_at: string | null;
   set_code: string;
-  games: object;
-  legalities: object;
+  games: unknown;
+  legalities: unknown;
   price_usd: number | null;
   cmc: number | null;
   colors: string[];
@@ -87,8 +87,8 @@ function mapCardToRow(card: unknown): ScryfallBulkRow | null {
     lang: 'en',
     released_at,
     set_code: set,
-    games: games as object,
-    legalities: legalities as object,
+    games,
+    legalities,
     price_usd,
     cmc,
     colors,
@@ -111,8 +111,8 @@ async function insertBatch(pool: Pool, rows: ScryfallBulkRow[]): Promise<void> {
     r.lang,
     r.released_at,
     r.set_code,
-    r.games,
-    r.legalities,
+    JSON.stringify(r.games),
+    JSON.stringify(r.legalities),
     r.price_usd,
     r.cmc,
     r.colors,
