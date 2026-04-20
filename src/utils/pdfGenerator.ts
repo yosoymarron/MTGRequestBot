@@ -10,6 +10,9 @@ interface PDFData {
   originalComment: string;
 }
 
+/** SVG check — Unicode ✓ often has no glyph in PDF fonts and renders as a hollow box. */
+const PDF_CHECK_YES = `<span class="pdf-check pdf-check--yes" role="img" aria-label="Yes"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path fill="#16a34a" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg></span>`;
+
 function generateHTML(data: PDFData): string {
   let cardsHtml = '';
 
@@ -22,16 +25,12 @@ function generateHTML(data: PDFData): string {
     const colors = card.colors || '';
     const type = card.primary_type || '';
 
-    // Text glyphs + CSS color (native checkboxes print grayscale in Chromium PDF)
+    // SVG + CSS color (native checkboxes print grayscale; text ✓ can "tofu" in embedded fonts)
     const over5Mark =
-      isOver5Dollars === '✅'
-        ? '<span class="pdf-check pdf-check--yes">✓</span>'
-        : '<span class="pdf-check pdf-check--no">—</span>';
+      isOver5Dollars === '✅' ? PDF_CHECK_YES : '<span class="pdf-check pdf-check--no">—</span>';
 
     const standardLegalMark =
-      legalitiesStandard === '✅'
-        ? '<span class="pdf-check pdf-check--yes">✓</span>'
-        : '<span class="pdf-check pdf-check--no">—</span>';
+      legalitiesStandard === '✅' ? PDF_CHECK_YES : '<span class="pdf-check pdf-check--no">—</span>';
 
     cardsHtml += `
         <tr>
@@ -79,15 +78,18 @@ function generateHTML(data: PDFData): string {
         td { font-weight: bold; }
         tr:nth-child(even) { background-color: #f9f9f9; }
         .pdf-check {
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             min-width: 1.1em;
-            text-align: center;
-            font-size: 13px;
-            line-height: 1;
             vertical-align: middle;
         }
-        .pdf-check--yes { color: #16a34a; font-weight: bold; }
-        .pdf-check--no { color: #9ca3af; }
+        .pdf-check--yes svg { display: block; }
+        .pdf-check--no {
+            color: #9ca3af;
+            font-size: 13px;
+            line-height: 1;
+        }
         .aux-info { margin-top: 20px; border-top: 2px solid #2c3e50; padding-top: 10px; }
         .aux-info p { font-style: italic; color: #555; }
     </style>
