@@ -5,6 +5,7 @@ import {
   PingInteraction,
   CommandInteraction,
   ButtonInteraction,
+  ModalSubmitInteraction,
 } from '../types/discord';
 import { handlePing } from './ping';
 import { handleSetRequestChannel } from './setRequestChannel';
@@ -13,6 +14,7 @@ import { handleRequestList } from './requestList';
 import { handleButtonInteraction } from './buttons/buttonRouter';
 import { handleConfigureDailyReminder } from './configureDailyReminder';
 import { handleConfigureAgingAlerts } from './configureAgingAlerts';
+import { handleConfirmModalSubmit } from './modal/confirmModalSubmit';
 
 export async function router(interaction: Interaction): Promise<any> {
   switch (interaction.type) {
@@ -24,6 +26,21 @@ export async function router(interaction: Interaction): Promise<any> {
 
     case InteractionType.MESSAGE_COMPONENT:
       return handleButtonInteraction(interaction as ButtonInteraction);
+
+    case InteractionType.MODAL_SUBMIT: {
+      const modalInteraction = interaction as ModalSubmitInteraction;
+      const customId = modalInteraction.data.custom_id;
+      
+      if (customId.startsWith('confirm-modal-submit_')) {
+        const requestId = parseInt(customId.split('_')[1], 10);
+        return handleConfirmModalSubmit(modalInteraction, requestId);
+      }
+      
+      return {
+        type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+        data: { content: 'Unknown modal submitted' },
+      };
+    }
 
     default:
       return {

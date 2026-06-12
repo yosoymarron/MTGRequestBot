@@ -213,18 +213,29 @@ export async function updateInteractionResponse(
     title?: string;
     description?: string;
     color?: number;
+    footer?: { text: string };
+  }>,
+  components?: Array<{
+    type: number;
+    components: Array<{
+      type: number;
+      style?: number;
+      label: string;
+      custom_id?: string;
+      disabled?: boolean;
+    }>;
   }>
 ): Promise<any> {
   await sleep(500); // Rate limit delay
+
+  const payload: any = { content, embeds };
+  if (components !== undefined) payload.components = components;
 
   return discordRequest(
     `/webhooks/${applicationId}/${token}/messages/@original`,
     {
       method: 'PATCH',
-      body: JSON.stringify({
-        content,
-        embeds,
-      }),
+      body: JSON.stringify(payload),
     }
   );
 }

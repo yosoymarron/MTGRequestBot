@@ -9,7 +9,7 @@ export function sanitizeInput(userInput: string): string {
   finalValue = finalValue
     .replace(/\\/g, '\\\\') // Escape literal backslashes
     .replace(/"/g, '\\"') // Escape double quotes for JSON
-    .replace(/[\r\n\t]/g, ' ') // Replace whitespace with space
+    .replace(/\t/g, ' ') // Replace tabs with space (preserve newlines for modal editing)
     .trim();
 
   return finalValue;

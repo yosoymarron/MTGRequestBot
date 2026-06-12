@@ -2,13 +2,16 @@ export enum InteractionType {
   PING = 1,
   APPLICATION_COMMAND = 2,
   MESSAGE_COMPONENT = 3,
+  MODAL_SUBMIT = 5,
 }
 
 export enum InteractionResponseType {
   PONG = 1,
   CHANNEL_MESSAGE_WITH_SOURCE = 4,
+  DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE = 5,
   DEFERRED_UPDATE_MESSAGE = 6,
   UPDATE_MESSAGE = 7,
+  MODAL = 9,
 }
 
 export enum ButtonStyle {
@@ -79,7 +82,39 @@ export interface ButtonInteraction {
   application_id: string;
 }
 
-export type Interaction = PingInteraction | CommandInteraction | ButtonInteraction;
+export interface ModalSubmitInteraction {
+  type: InteractionType.MODAL_SUBMIT;
+  data: {
+    custom_id: string;
+    components: Array<{
+      type: number;
+      components: Array<{
+        type: number;
+        custom_id: string;
+        value: string;
+      }>;
+    }>;
+  };
+  guild_id?: string;
+  channel_id: string;
+  member?: {
+    user: {
+      id: string;
+      username: string;
+      global_name?: string;
+    };
+    nick?: string;
+  };
+  user?: {
+    id: string;
+    username: string;
+    global_name?: string;
+  };
+  token: string;
+  application_id: string;
+}
+
+export type Interaction = PingInteraction | CommandInteraction | ButtonInteraction | ModalSubmitInteraction;
 
 export interface InteractionResponse {
   type: InteractionResponseType;

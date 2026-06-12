@@ -2,6 +2,7 @@ import * as cron from 'node-cron';
 import {
   getAllGuildSettings,
   getAgedPendingRequests,
+  purgeDraftRequests,
   pool,
 } from './database';
 import { runScryfallBulkSync } from './scryfallBulkSync';
@@ -347,6 +348,19 @@ export async function sendAgingNotifications(guildId?: string | null): Promise<v
 }
 
 /**
+ * Delete all draft requests with status 'Confirming'.
+ * Runs at 11:50 PM daily so abandoned drafts don't get copied to the read replica at midnight.
+ */
+export async function purgeAbandonedDrafts(): Promise<void> {
+  try {
+    const count = await purgeDraftRequests();
+    console.log(`[Scheduler] Purged ${count} abandoned draft request(s)`);
+  } catch (error: any) {
+    console.error('[Scheduler] Failed to purge draft requests:', error?.message || error);
+  }
+}
+
+/**
  * Download and import Scryfall default_cards bulk data (scheduled daily).
  */
 export async function runScryfallBulkSyncJob(): Promise<void> {
@@ -400,8 +414,15 @@ export function initializeScheduler(): void {
     });
   });
 
+  // Schedule draft cleanup at 11:50 PM daily (before midnight read-replica sync)
+  cron.schedule('50 23 * * *', () => {
+    purgeAbandonedDrafts().catch((error) => {
+      console.error('[Scheduler] Unhandled error in draft purge:', error);
+    });
+  });
+
   console.log(
-    `[Scheduler] Initialized - Daily tasks at 10:00 AM EST (15:00 UTC); Scryfall bulk sync at cron "${bulkCron}"`
+    `[Scheduler] Initialized - Daily tasks at 10:00 AM EST (15:00 UTC); Scryfall bulk sync at cron "${bulkCron}"; Draft cleanup at 11:50 PM`
   );
 }
 

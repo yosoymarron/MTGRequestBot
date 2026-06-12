@@ -173,7 +173,8 @@ async function insertRequestRow(
   channelId: string,
   userId: string,
   requestPayload: object,
-  cardsRequested: ParsedCardRequest
+  cardsRequested: ParsedCardRequest,
+  status: string = 'Pending'
 ): Promise<number> {
   const result: QueryResult<{ id: number }> = await pool.query(
     `INSERT INTO mtgrequestbot_requests 
@@ -186,7 +187,7 @@ async function insertRequestRow(
       interactionId,
       channelId,
       userId,
-      'Pending',
+      status,
       JSON.stringify(requestPayload),
       JSON.stringify(cardsRequested),
     ]
@@ -207,7 +208,8 @@ export async function createRequest(
   channelId: string,
   userId: string,
   requestPayload: object,
-  cardsRequested: ParsedCardRequest
+  cardsRequested: ParsedCardRequest,
+  status: string = 'Pending'
 ): Promise<number> {
   try {
     return await insertRequestRow(
@@ -217,7 +219,8 @@ export async function createRequest(
       channelId,
       userId,
       requestPayload,
-      cardsRequested
+      cardsRequested,
+      status
     );
   } catch (err) {
     if (!isRequestsPkeyDup(err)) {
@@ -231,7 +234,8 @@ export async function createRequest(
       channelId,
       userId,
       requestPayload,
-      cardsRequested
+      cardsRequested,
+      status
     );
   }
 }
@@ -292,6 +296,34 @@ export async function getAgedPendingRequests(
   );
 
   return result.rows;
+}
+
+/**
+ * Delete all draft requests with status 'Confirming'.
+ * Called nightly at 11:50 PM to prevent drafts from being copied to the read replica at midnight.
+ */
+export async function purgeDraftRequests(): Promise<number> {
+  const result = await pool.query(
+    `DELETE FROM mtgrequestbot_requests WHERE status = 'Confirming'`
+  );
+  return result.rowCount ?? 0;
+}
+
+/**
+ * Update a draft request's parsed card data and original input.
+ * Used when a user edits their card list via the confirmation modal.
+ */
+export async function updateRequestDraft(
+  id: number,
+  requestPayload: object,
+  cardsRequested: ParsedCardRequest
+): Promise<void> {
+  await pool.query(
+    `UPDATE mtgrequestbot_requests
+     SET request_payload = $1, cards_requested = $2, updated_at = NOW()
+     WHERE id = $3 AND status = 'Confirming'`,
+    [JSON.stringify(requestPayload), JSON.stringify(cardsRequested), id]
+  );
 }
 
 // Close pool on process exit

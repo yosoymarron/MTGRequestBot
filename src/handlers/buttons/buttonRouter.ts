@@ -2,6 +2,9 @@ import { ButtonInteraction, InteractionResponseType } from '../../types/discord'
 import { handleCompleteRequest } from './completeRequest';
 import { handleCancelRequest } from './cancelRequest';
 import { handleTogglePrint } from './togglePrint';
+import { handleConfirmAccept } from './confirmAccept';
+import { handleConfirmCancel } from './confirmCancel';
+import { handleConfirmEdit } from './confirmEdit';
 
 export async function handleButtonInteraction(
   interaction: ButtonInteraction
@@ -38,6 +41,15 @@ export async function handleButtonInteraction(
 
     case 'unprint-request':
       return handleTogglePrint(interaction, requestId, false);
+
+    case 'confirm-accept-request':
+      return handleConfirmAccept(interaction, requestId);
+
+    case 'confirm-cancel-request':
+      return handleConfirmCancel(interaction, requestId);
+
+    case 'confirm-edit-request':
+      return handleConfirmEdit(interaction, requestId);
 
     default:
       return {

@@ -14,6 +14,7 @@ import {
   followUpMessage,
 } from '../services/discord';
 import { CardDataWithScryfall } from '../types/database';
+import { buildConfirmationMessage } from '../utils/confirmationMessage';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -24,10 +25,9 @@ export async function handleRequestList(
 ): Promise<any> {
   // 1. Immediate response (within 3 seconds)
   const immediateResponse = {
-    type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+    type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
     data: {
-      content:
-        "MTGRequestBot here! I'm processing your request. If you're still seeing this after 15 minutes, please try again or request cards directly.",
+      flags: 64, // Ephemeral
     },
   };
 
@@ -180,7 +180,7 @@ async function processRequestList(
       }));
     }
 
-    // 7. Save to database (only after successful processing)
+    // 7. Save to database as draft (Confirming)
     const requestId = await createRequest(
       guildId,
       interaction.token,
@@ -188,147 +188,24 @@ async function processRequestList(
       interaction.channel_id,
       interaction.member?.user.id || interaction.user?.id || '',
       interaction,
-      parsedCards
+      parsedCards,
+      'Confirming'
     );
 
-    // 8. Generate PDF
-    const userNick =
-      interaction.member?.nick ||
-      interaction.member?.user.global_name ||
-      interaction.member?.user.username ||
-      interaction.user?.username ||
-      'Unknown';
-    const username =
-      interaction.member?.user.username || interaction.user?.username || 'Unknown';
+    // 8. Present confirmation to the user
+    const { content, embeds, components } = buildConfirmationMessage(
+      requestId,
+      cardsWithData,
+      userInput.length
+    );
 
-    let pdfBuffer: Buffer;
-    try {
-      pdfBuffer = await generatePDF({
-        requestId,
-        userNick,
-        username,
-        requestNote: parsedCards.user_note,
-        cardData: cardsWithData,
-        originalComment: sanitizedInput,
-      });
-    } catch (error) {
-      console.error('PDF generation error:', error);
-      // Continue without PDF if generation fails
-      pdfBuffer = Buffer.from('');
-    }
-
-    // 9. Post to task channel
-    await sleep(500);
-    const pdfFilename = generatePDFFilename(requestId, userNick);
-    const pdfFile = pdfBuffer.length > 0
-      ? [{ name: pdfFilename, data: pdfBuffer }]
-      : undefined;
-
-    try {
-      await sendDiscordMessage(
-        settings.task_channel,
-        `A new card request has been submitted by <@${interaction.member?.user.id || interaction.user?.id}>. ${pdfFile ? 'A downloadable PDF is attached for your review.' : 'PDF generation failed, but request was processed.'}`,
-        [
-          {
-            title: pdfFile ? 'New Card Request - Attached' : 'New Card Request',
-            description: pdfFile
-              ? 'Please download the attached file to view the detailed request.'
-              : 'PDF generation failed. Check logs for details.',
-            color: 3447003, // Blue
-          },
-        ],
-        [
-          {
-            type: 1,
-            components: [
-              {
-                type: 2,
-                style: ButtonStyle.PRIMARY,
-                label: 'Mark as Complete',
-                custom_id: `complete-request_${requestId}`,
-              },
-              {
-                type: 2,
-                style: ButtonStyle.DANGER,
-                label: 'Cancel Request',
-                custom_id: `cancel-request_${requestId}`,
-              },
-              {
-                type: 2,
-                style: ButtonStyle.SECONDARY,
-                label: 'Not printed yet',
-                custom_id: `print-request_${requestId}`,
-              },
-            ],
-          },
-        ],
-        pdfFile
-      );
-    } catch (error: any) {
-      // If sending to task channel fails, still update the user but log the error
-      console.error('Failed to send message to task channel:', error);
-      
-      // Try to provide helpful error message
-      if (error.message?.includes('Missing Access') || error.message?.includes('403')) {
-        await updateInteractionResponse(
-          interaction.application_id,
-          interaction.token,
-          `⚠️ Your request was saved, but there was an issue posting it to the task channel. Please check that the bot has permission to send messages in <#${settings.task_channel}>. The bot needs "View Channel", "Send Messages", and "Attach Files" permissions.`,
-          [
-            {
-              title: 'Permission Error',
-              description: `The bot cannot post to the task channel (<#${settings.task_channel}>). Please contact an administrator to fix the bot's permissions.`,
-              color: 15158332, // Red
-            },
-          ]
-        );
-      } else {
-        // Re-throw other errors to be caught by outer catch block
-        throw error;
-      }
-      return;
-    }
-
-    // 10. Update customer message
-    await sleep(500);
     await updateInteractionResponse(
       interaction.application_id,
       interaction.token,
-      "Got it! Your request has been added to our queue. We'll send you a message when it's ready!",
-      [
-        {
-          title: 'Original Request',
-          color: 3447003, // Blue
-          description: sanitizedInput.substring(0, 2000), // Discord embed limit
-        },
-      ]
+      content,
+      embeds,
+      components
     );
-
-    // 11. Follow-up unmatched cards (ephemeral)
-    const unmatchedCards = cardsWithData.filter(
-      (card) => card.set === 'no match'
-    );
-
-    if (unmatchedCards.length > 0) {
-      await sleep(1000);
-      const unmatchedList = unmatchedCards
-        .map((card) => `- ${card.name}`)
-        .join('\n');
-
-      await followUpMessage(
-        interaction.application_id,
-        interaction.token,
-        "Heads up! I didn't recognize the following as Magic cards. **No action needed on your end!** The staff know more about cards than me, and will reach out if they need you to clarify.",
-        [
-          {
-            title: 'Unmatched Cards',
-            color: 3447003, // Blue
-            description: unmatchedList.substring(0, 2000), // Discord embed limit
-          },
-        ],
-        64 // Ephemeral flag
-      );
-    }
   } catch (error) {
     console.error('Unexpected error in processRequestList:', error);
     // Try to notify user of error
