@@ -23,9 +23,6 @@ export function buildConfirmationMessage(
       : card.foil === 'Preferred'
         ? ' · *Foil Preferred*'
         : '';
-    const setTag = card.set && card.set !== 'no match'
-      ? ` · ${card.set.toUpperCase()}`
-      : '';
     const noMatchTag = card.set === 'no match'
       ? ' · ⚠️ *no match*'
       : '';
@@ -33,7 +30,7 @@ export function buildConfirmationMessage(
       ? ` *(${card.specific_print})*`
       : '';
 
-    lines.push(`**${card.qty}×** ${card.name}${foilTag}${specificPrint}${setTag}${noMatchTag}`);
+    lines.push(`**${card.qty}×** ${card.name}${foilTag}${specificPrint}${noMatchTag}`);
 
     if (card.set === 'no match') {
       unmatchedCards.push(card.name);

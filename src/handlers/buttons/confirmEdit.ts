@@ -46,7 +46,7 @@ export async function handleConfirmEdit(
             {
               type: 4, // TEXT_INPUT
               custom_id: 'card_list_input',
-              label: 'Your Card List (no staff notes)',
+              label: 'Your Card List',
               style: 2, // PARAGRAPH
               min_length: 1,
               max_length: 4000,
