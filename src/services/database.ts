@@ -250,6 +250,20 @@ export async function updateRequestStatus(
   );
 }
 
+/**
+ * Atomically transitions a request from 'Confirming' → 'Pending'.
+ * Returns true if the transition happened, false if the request was already
+ * processed (guards against duplicate button-interaction retries from Discord).
+ */
+export async function claimRequestForProcessing(id: number): Promise<boolean> {
+  const result = await pool.query(
+    `UPDATE mtgrequestbot_requests SET status = 'Pending', updated_at = NOW()
+     WHERE id = $1 AND status = 'Confirming'`,
+    [id]
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
 export async function getRequest(id: number): Promise<Request | null> {
   const result: QueryResult<Request> = await pool.query(
     'SELECT * FROM mtgrequestbot_requests WHERE id = $1 LIMIT 1',

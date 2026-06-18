@@ -42,7 +42,7 @@ export interface Request {
   updated_at: Date;
   cards_requested: {
     user_note: string;
-    card_data: CardData[];
+    card_data: CardDataWithScryfall[];
   };
 }
 

@@ -4,6 +4,7 @@ import { parseCardRequest } from '../../services/openai';
 import { fetchAllCardData } from '../../services/scryfall';
 import { sanitizeInput } from '../../utils/sanitize';
 import { buildConfirmationMessage } from '../../utils/confirmationMessage';
+import { formatCardsForModal } from '../../utils/cardFormatter';
 import { updateInteractionResponse } from '../../services/discord';
 
 export async function handleConfirmModalSubmit(
@@ -65,16 +66,18 @@ async function processConfirmModalSubmit(
       }));
     }
 
-    // Update the database draft
+    // Update the database draft — store sorted, enriched card data
     const existingPayload = request.request_payload as any;
     const newPayload = { ...existingPayload, originalInput: newText };
-    await updateRequestDraft(requestId, newPayload, parsedCards);
+    const cardsRequested = { user_note: parsedCards.user_note, card_data: cardsWithData };
+    await updateRequestDraft(requestId, newPayload, cardsRequested);
 
-    // Rebuild the confirmation message
+    // Rebuild the confirmation message — base edit-disabled check on formatted length
+    const modalText = formatCardsForModal(cardsRequested);
     const { content, embeds, components } = buildConfirmationMessage(
       requestId,
       cardsWithData,
-      newText.length
+      modalText.length
     );
 
     // Update the ephemeral message with the new list

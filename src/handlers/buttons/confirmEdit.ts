@@ -1,5 +1,6 @@
 import { ButtonInteraction, InteractionResponseType } from '../../types/discord';
 import { getRequest } from '../../services/database';
+import { formatCardsForModal } from '../../utils/cardFormatter';
 
 export async function handleConfirmEdit(
   interaction: ButtonInteraction,
@@ -13,18 +14,12 @@ export async function handleConfirmEdit(
     };
   }
 
-  // Retrieve original input to pre-populate the modal
-  let originalComment = '';
-  const payload = request.request_payload as any;
-  if (payload.originalInput) {
-    originalComment = payload.originalInput;
-  } else {
-    // From initial slash command
-    originalComment = payload.data?.options?.[0]?.value || '';
-  }
+  // Pre-populate with the bot's parsed interpretation so the user can correct
+  // any mis-parses rather than editing raw input
+  const formattedText = formatCardsForModal(request.cards_requested);
 
-  // Prevent showing modal if the text is longer than Discord's 4000 char limit for text inputs
-  if (originalComment.length > 4000) {
+  // Prevent showing modal if the formatted text exceeds Discord's 4000 char limit
+  if (formattedText.length > 4000) {
     return {
       type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
       data: {
@@ -50,7 +45,7 @@ export async function handleConfirmEdit(
               style: 2, // PARAGRAPH
               min_length: 1,
               max_length: 4000,
-              value: originalComment, // Pre-populate
+              value: formattedText,
               required: true,
             },
           ],

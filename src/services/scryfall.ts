@@ -1,7 +1,7 @@
 import { CardDataWithScryfall, CardData } from '../types/database';
 import { pool } from './database';
 
-const FUZZY_SIMILARITY_THRESHOLD = 0.35;
+const FUZZY_SIMILARITY_THRESHOLD = 0.30;
 const LOOKUP_CONCURRENCY = 6;
 
 interface ScryfallDbRow {
@@ -142,7 +142,27 @@ export async function fetchAllCardData(
     };
   });
 
-  results.sort((a, b) => {
+  // Recovery pass: for cards still unmatched that have a specific_print, try
+  // the combined "name, specific_print" as a single card name. Handles cases
+  // like "Ral Zarek, Guest Lecturer" where the LLM split the comma-name.
+  const recovered = await mapWithConcurrency(
+    results,
+    LOOKUP_CONCURRENCY,
+    async (card) => {
+      if (card.set !== 'no match' || !card.specific_print) return card;
+      const combined = `${card.name}, ${card.specific_print}`;
+      const match = await lookupCardDataFromDb(combined);
+      if (!match) return card;
+      return {
+        ...card,
+        ...match,
+        name: combined,
+        specific_print: null,
+      };
+    }
+  );
+
+  recovered.sort((a, b) => {
     const nameA = a.name.toUpperCase();
     const nameB = b.name.toUpperCase();
     if (nameA < nameB) return -1;
@@ -150,5 +170,5 @@ export async function fetchAllCardData(
     return 0;
   });
 
-  return results;
+  return recovered;
 }

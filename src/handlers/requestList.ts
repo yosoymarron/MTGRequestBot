@@ -7,6 +7,7 @@ import { getGuildSettings, createRequest } from '../services/database';
 import { parseCardRequest } from '../services/openai';
 import { fetchAllCardData } from '../services/scryfall';
 import { sanitizeInput } from '../utils/sanitize';
+import { preMatchCardNames } from '../utils/preParser';
 import { generatePDF, generatePDFFilename } from '../utils/pdfGenerator';
 import {
   sendDiscordMessage,
@@ -15,6 +16,7 @@ import {
 } from '../services/discord';
 import { CardDataWithScryfall } from '../types/database';
 import { buildConfirmationMessage } from '../utils/confirmationMessage';
+import { formatCardsForModal } from '../utils/cardFormatter';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -141,10 +143,19 @@ async function processRequestList(
     // 4. Sanitize input
     const sanitizedInput = sanitizeInput(userInput);
 
-    // 5. Parse with OpenAI
+    // 5. Pre-match card names against DB to give LLM confirmed hints
+    let preMatchedNames: string[] = [];
+    try {
+      const preMatched = await preMatchCardNames(sanitizedInput);
+      preMatchedNames = [...preMatched];
+    } catch (error) {
+      console.error('Pre-match error (non-fatal):', error);
+    }
+
+    // 6. Parse with OpenAI (pre-matched names passed as hints)
     let parsedCards;
     try {
-      parsedCards = await parseCardRequest(sanitizedInput);
+      parsedCards = await parseCardRequest(sanitizedInput, preMatchedNames);
     } catch (error) {
       console.error('OpenAI parsing error:', error);
       await updateInteractionResponse(
@@ -162,7 +173,7 @@ async function processRequestList(
       return;
     }
 
-    // 6. Fetch card data from Scryfall (before saving to DB)
+    // 7. Fetch card data from Scryfall — includes recovery pass and A-Z sort
     let cardsWithData: CardDataWithScryfall[];
     try {
       cardsWithData = await fetchAllCardData(parsedCards.card_data);
@@ -180,7 +191,8 @@ async function processRequestList(
       }));
     }
 
-    // 7. Save to database as draft (Confirming)
+    // 8. Save to database as draft (Confirming) — store sorted, enriched card data
+    const cardsRequested = { user_note: parsedCards.user_note, card_data: cardsWithData };
     const requestId = await createRequest(
       guildId,
       interaction.token,
@@ -188,15 +200,17 @@ async function processRequestList(
       interaction.channel_id,
       interaction.member?.user.id || interaction.user?.id || '',
       interaction,
-      parsedCards,
+      cardsRequested,
       'Confirming'
     );
 
-    // 8. Present confirmation to the user
+    // 9. Present confirmation to the user
+    // Use formatted modal text length (not raw input) to guard the Edit button
+    const modalText = formatCardsForModal(cardsRequested);
     const { content, embeds, components } = buildConfirmationMessage(
       requestId,
       cardsWithData,
-      userInput.length
+      modalText.length
     );
 
     await updateInteractionResponse(

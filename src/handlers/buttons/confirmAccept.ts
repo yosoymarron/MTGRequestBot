@@ -1,5 +1,5 @@
 import { ButtonInteraction, InteractionResponseType, ButtonStyle } from '../../types/discord';
-import { updateRequestStatus, getRequest, getGuildSettings } from '../../services/database';
+import { claimRequestForProcessing, getRequest, getGuildSettings } from '../../services/database';
 import { sendDiscordMessage, updateInteractionResponse } from '../../services/discord';
 import { generatePDF, generatePDFFilename } from '../../utils/pdfGenerator';
 import { CardDataWithScryfall } from '../../types/database';
@@ -33,8 +33,9 @@ async function processConfirmAccept(
     return;
   }
 
-  // Update DB to Pending status
-  await updateRequestStatus(requestId, 'Pending');
+  // Atomically claim the request — guards against duplicate Discord retries
+  const claimed = await claimRequestForProcessing(requestId);
+  if (!claimed) return;
 
   const request = await getRequest(requestId);
   if (!request) return;
@@ -52,6 +53,7 @@ async function processConfirmAccept(
   }
 
   // Generate PDF
+  const userId = interaction.member?.user.id || interaction.user?.id || '';
   const userNick = interaction.member?.nick || interaction.member?.user.global_name || interaction.member?.user.username || interaction.user?.username || 'Unknown';
   const username = interaction.member?.user.username || interaction.user?.username || 'Unknown';
 
@@ -76,7 +78,7 @@ async function processConfirmAccept(
   // Send to task channel
   await sendDiscordMessage(
     settings.task_channel,
-    `A new card request has been submitted by <@${interaction.member?.user.id || interaction.user?.id}>. ${pdfFile ? 'A downloadable PDF is attached for your review.' : 'PDF generation failed, but request was processed.'}`,
+    `A new card request has been submitted by <@${userId}>. ${pdfFile ? 'A downloadable PDF is attached for your review.' : 'PDF generation failed, but request was processed.'}`,
     [
       {
         title: pdfFile ? 'New Card Request - Attached' : 'New Card Request',
@@ -112,11 +114,22 @@ async function processConfirmAccept(
     pdfFile
   );
 
+  // Post a public message in the request channel so the submission is visible
+  // and referenceable by both the user and other staff
+  if (settings.request_channel) {
+    await sendDiscordMessage(
+      settings.request_channel,
+      `A new card request has been submitted by <@${userId}> (Request #${requestId}). Feel free to respond here with any updates or questions!`,
+      [],
+      []
+    );
+  }
+
   // Update user ephemeral message to confirm success
   await updateInteractionResponse(
     interaction.application_id,
     interaction.token,
-    "✅ **Request Submitted!** Your MTG card request has been sent to our staff. We will notify you here when it is ready!",
+    "✅ **Request Submitted!** Your MTG card request has been sent to our staff. We will notify you here when it is ready!\n\n*(A post has also been made in the request channel that you and others can respond to with updates or questions. This message can't be seen by others.)*",
     [], // Remove embeds
     []  // Remove components
   );
