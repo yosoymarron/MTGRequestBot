@@ -79,7 +79,7 @@ The application uses separate databases for development and production to preven
 
 Card metadata for PDFs is loaded from a local copy of Scryfall’s **default_cards** bulk file (English, paper-print rows only), not from `api.scryfall.com` per request.
 
-- **Initial load:** After building (`npm run build`), run `npm run scryfall:bulk-sync`. This downloads the gzip from Scryfall, imports it into `mtgrequestbot_scryfall_cards`, and keeps up to **three** timestamped `.json.gz` files under `data/scryfall-bulk/` (configurable `SCRYFALL_BULK_DIR`).
+- **Initial load:** After building (`npm run build`), run `npm run scryfall:bulk-sync`. This downloads the gzip from Scryfall, imports it into `mtgrequestbot_scryfall_cards`, and keeps up to **three** timestamped `.jsonl.gz` files under `data/scryfall-bulk/` (configurable `SCRYFALL_BULK_DIR`).
 - **Schedule:** The server runs a daily job (default **04:00 UTC**; override with `SCRYFALL_BULK_CRON`) to refresh the cache.
 - **Disk:** Each download is on the order of tens to low hundreds of MB compressed; only three files are retained on disk.
 - **Database:** Requires the `pg_trgm` extension (created by the migration). If the cache table is empty at startup, the server logs a warning until you run `scryfall:bulk-sync` or wait for the scheduled job.
@@ -483,7 +483,7 @@ src/
 - `PORT` - Server port (default: 3000)
 - `NODE_ENV` - Environment (`development` or `production`). Controls which database URL is used.
 - `PUPPETEER_EXECUTABLE_PATH` - Path to Chromium (set automatically in Docker)
-- `SCRYFALL_BULK_DIR` - Optional. Directory for downloaded Scryfall bulk `.json.gz` files (default: `data/scryfall-bulk` under the project root). Only the three newest files are kept.
+- `SCRYFALL_BULK_DIR` - Optional. Directory for downloaded Scryfall bulk `.jsonl.gz` files (default: `data/scryfall-bulk` under the project root). Only the three newest files are kept.
 - `SCRYFALL_BULK_CRON` - Optional. Cron schedule for daily bulk download/import (default: `0 4 * * *`, 04:00 UTC).
 
 ## Notes

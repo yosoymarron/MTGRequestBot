@@ -11,6 +11,10 @@ import type { Pool } from 'pg';
 const parser = streamJson.parser;
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const streamArray = require('stream-json/streamers/stream-array.js');
+// Scryfall's bulk files are line-delimited JSON; the legacy array parser above is
+// kept only for older `.json`/`.json.gz` downloads still on disk.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const jsonlParser = require('stream-json/jsonl/parser.js');
 
 const BULK_DATA_URL = 'https://api.scryfall.com/bulk-data';
 const BATCH_SIZE = 2500;
@@ -196,7 +200,11 @@ async function ingestFileToStaging(
   if (filePath.endsWith('.gz')) {
     steps.push(zlib.createGunzip());
   }
-  steps.push(parser(), streamArray());
+  if (filePath.includes('.jsonl')) {
+    steps.push(jsonlParser());
+  } else {
+    steps.push(parser(), streamArray());
+  }
   const jsonPipeline = chain(steps);
   await pipeline(jsonPipeline, writer);
 }
@@ -220,7 +228,7 @@ async function downloadDefaultCardsToFile(
 
 async function fetchDefaultCardsDownloadInfo(): Promise<{
   uri: string;
-  extension: '.json.gz' | '.json';
+  extension: '.jsonl.gz' | '.json.gz' | '.json';
 }> {
   const res = await fetch(BULK_DATA_URL, {
     headers: { 'User-Agent': 'MTGRequestBot/1.0 (bulk sync)' },
@@ -231,22 +239,29 @@ async function fetchDefaultCardsDownloadInfo(): Promise<{
   const manifest = (await res.json()) as {
     data?: Array<{
       type?: string;
+      jsonl_download_uri?: string;
       download_uri?: string;
       compressed_uri?: string;
     }>;
   };
   const entry = manifest.data?.find((d) => d.type === 'default_cards');
-  // Prefer the compressed gzip when available to reduce bandwidth/storage.
-  if (entry?.compressed_uri) {
-    return { uri: entry.compressed_uri, extension: '.json.gz' };
-  }
-  if (entry?.download_uri) {
-    return { uri: entry.download_uri, extension: '.json' };
-  }
   if (!entry) {
     throw new Error('Bulk manifest: default_cards entry not found');
   }
-  throw new Error('Bulk manifest: default_cards has no download uri');
+  // Current Scryfall manifests only expose a gzipped JSONL file.
+  if (entry.jsonl_download_uri) {
+    return { uri: entry.jsonl_download_uri, extension: '.jsonl.gz' };
+  }
+  // Legacy JSON-array fields, kept as a fallback.
+  if (entry.compressed_uri) {
+    return { uri: entry.compressed_uri, extension: '.json.gz' };
+  }
+  if (entry.download_uri) {
+    return { uri: entry.download_uri, extension: '.json' };
+  }
+  throw new Error(
+    `Bulk manifest: default_cards has no usable download uri (keys: ${Object.keys(entry).join(', ')})`
+  );
 }
 
 function timestampForFilename(): string {
@@ -264,7 +279,13 @@ export async function pruneOldBulkFiles(bulkDir: string): Promise<void> {
   }
   const matches = entries.filter((f) => {
     if (!f.startsWith(FILE_PREFIX)) return false;
-    return f.endsWith('.json.gz') || f.endsWith('.json');
+    // `.jsonl*` is the current format; `.json*` covers older downloads still on disk.
+    return (
+      f.endsWith('.jsonl.gz') ||
+      f.endsWith('.jsonl') ||
+      f.endsWith('.json.gz') ||
+      f.endsWith('.json')
+    );
   });
   const withMtime = await Promise.all(
     matches.map(async (name) => {
