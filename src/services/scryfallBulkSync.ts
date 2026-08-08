@@ -33,6 +33,10 @@ export interface ScryfallBulkRow {
   cmc: number | null;
   colors: string[];
   type_line: string | null;
+  rarity: string | null;
+  promo: boolean;
+  set_type: string | null;
+  booster: boolean;
 }
 
 export function getScryfallBulkDir(): string {
@@ -85,6 +89,13 @@ function mapCardToRow(card: unknown): ScryfallBulkRow | null {
   const type_line =
     typeof c.type_line === 'string' ? c.type_line : null;
 
+  // Rarity/promo/set_type are per-printing; they drive both the printed rarity
+  // and which printing counts as the "last printed set".
+  const rarity = typeof c.rarity === 'string' ? c.rarity : null;
+  const promo = c.promo === true;
+  const set_type = typeof c.set_type === 'string' ? c.set_type : null;
+  const booster = c.booster === true;
+
   return {
     id,
     name,
@@ -97,19 +108,34 @@ function mapCardToRow(card: unknown): ScryfallBulkRow | null {
     cmc,
     colors,
     type_line,
+    rarity,
+    promo,
+    set_type,
+    booster,
   };
 }
 
-async function insertBatch(pool: Pool, rows: ScryfallBulkRow[]): Promise<void> {
-  if (rows.length === 0) return;
-  const cols = 11;
-  const placeholders = rows
-    .map((_, rowIdx) => {
-      const base = rowIdx * cols;
-      return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10}, $${base + 11})`;
-    })
-    .join(', ');
-  const values = rows.flatMap((r) => [
+/** Staging columns, in the order rowToValues() emits them. */
+const STAGING_COLUMNS = [
+  'id',
+  'name',
+  'lang',
+  'released_at',
+  'set_code',
+  'games',
+  'legalities',
+  'price_usd',
+  'cmc',
+  'colors',
+  'type_line',
+  'rarity',
+  'promo',
+  'set_type',
+  'booster',
+] as const;
+
+function rowToValues(r: ScryfallBulkRow): unknown[] {
+  return [
     r.id,
     r.name,
     r.lang,
@@ -121,9 +147,26 @@ async function insertBatch(pool: Pool, rows: ScryfallBulkRow[]): Promise<void> {
     r.cmc,
     r.colors,
     r.type_line,
-  ]);
+    r.rarity,
+    r.promo,
+    r.set_type,
+    r.booster,
+  ];
+}
+
+async function insertBatch(pool: Pool, rows: ScryfallBulkRow[]): Promise<void> {
+  if (rows.length === 0) return;
+  const cols = STAGING_COLUMNS.length;
+  const placeholders = rows
+    .map((_, rowIdx) => {
+      const base = rowIdx * cols;
+      const slots = Array.from({ length: cols }, (_v, i) => `$${base + i + 1}`);
+      return `(${slots.join(', ')})`;
+    })
+    .join(', ');
+  const values = rows.flatMap(rowToValues);
   await pool.query(
-    `INSERT INTO mtgrequestbot_scryfall_cards_staging (id, name, lang, released_at, set_code, games, legalities, price_usd, cmc, colors, type_line) VALUES ${placeholders}`,
+    `INSERT INTO mtgrequestbot_scryfall_cards_staging (${STAGING_COLUMNS.join(', ')}) VALUES ${placeholders}`,
     values
   );
 }
@@ -177,9 +220,12 @@ async function swapStagingToMain(pool: Pool): Promise<void> {
   try {
     await client.query('BEGIN');
     await client.query('TRUNCATE mtgrequestbot_scryfall_cards');
+    // Columns listed explicitly: `SELECT *` matches by position, so it would
+    // silently mis-map if the two tables' column order ever drifted.
+    const cols = STAGING_COLUMNS.join(', ');
     await client.query(
-      `INSERT INTO mtgrequestbot_scryfall_cards
-       SELECT * FROM mtgrequestbot_scryfall_cards_staging`
+      `INSERT INTO mtgrequestbot_scryfall_cards (${cols})
+       SELECT ${cols} FROM mtgrequestbot_scryfall_cards_staging`
     );
     await client.query('COMMIT');
   } catch (e) {

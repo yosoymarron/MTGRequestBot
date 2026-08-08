@@ -75,6 +75,17 @@ The application uses separate databases for development and production to preven
    \i scripts/add-scryfall-bulk-cards.sql
    ```
 
+7. Run the card rarity migration (adds `rarity`, `promo`, `set_type`, `booster` to the card cache):
+   ```bash
+   psql -U your_username -h your_host -d mtgrequestbot_dev -f scripts/add-scryfall-card-rarity.sql
+   ```
+   Or if already connected:
+   ```sql
+   \i scripts/add-scryfall-card-rarity.sql
+   ```
+   These columns stay empty until the next bulk sync, so run `npm run scryfall:bulk-sync`
+   afterwards or the Rarity column on new PDFs will be blank.
+
 #### Scryfall bulk data
 
 Card metadata for PDFs is loaded from a local copy of Scryfall’s **default_cards** bulk file (English, paper-print rows only), not from `api.scryfall.com` per request.
@@ -83,6 +94,7 @@ Card metadata for PDFs is loaded from a local copy of Scryfall’s **default_car
 - **Schedule:** The server runs a daily job (default **04:00 UTC**; override with `SCRYFALL_BULK_CRON`) to refresh the cache.
 - **Disk:** Each download is on the order of tens to low hundreds of MB compressed; only three files are retained on disk.
 - **Database:** Requires the `pg_trgm` extension (created by the migration). If the cache table is empty at startup, the server logs a warning until you run `scryfall:bulk-sync` or wait for the scheduled job.
+- **Which printing the PDF describes:** every meta column on the printout (Type, CMC, Colors, Rarity, Over $5?, Standard Legal?, LPS) is read off a *single* printing row, so they always describe the same physical card. That printing is chosen by preferring normal printings over promos / Secret Lair / masterpieces / Un-sets, then the most recent release that is not future-dated, then the booster printing over same-set showcase variants. Rarity in particular is per-printing — without this, Sol Ring would report its Secret Lair rarity rather than its set rarity.
 
 For development without a prior `npm run build`, you can run the sync with `npx tsx src/cli/scryfallBulkSync.ts` (same env vars as the app).
 

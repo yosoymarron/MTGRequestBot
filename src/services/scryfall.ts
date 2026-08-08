@@ -11,7 +11,51 @@ interface ScryfallDbRow {
   cmc: string | number | null;
   colors: string[] | null;
   type_line: string | null;
+  rarity: string | null;
 }
+
+const SCRYFALL_COLUMNS =
+  'set_code, legalities, price_usd, cmc, colors, type_line, rarity';
+
+/**
+ * Picks which printing a card's meta comes from — every printed field (cost,
+ * colors, rarity, type, price, LPS) is read off this one row so they always
+ * describe the same physical card.
+ *
+ * Ranking:
+ *  1. Normal printings before promos / Secret Lair / masterpieces / Un-sets.
+ *     Rarity is per-printing, so a promo variant can disagree with the set
+ *     printing (Sol Ring in `soc` is uncommon normally, mythic as a promo).
+ *  2. Then most recently released.
+ *  3. Then booster printings before same-set showcase variants, which are not
+ *     promos but still differ in rarity (Foundations Llanowar Elves is common
+ *     at #227 and mythic as the #429 showcase).
+ *  4. Then set_code/id purely so remaining ties are deterministic rather than
+ *     whatever order Postgres happens to return.
+ *
+ * COALESCE keeps this sane before the first bulk sync backfills the new
+ * columns: NULL set_type/promo rank as "normal" instead of poisoning the sort.
+ */
+const PRINTING_RANK = `(
+    COALESCE(promo, false)
+    OR COALESCE(set_type, '') IN ('promo', 'box', 'memorabilia', 'funny', 'token', 'minigame', 'masterpiece')
+  ) ASC,
+  released_at DESC NULLS LAST,
+  COALESCE(booster, false) DESC,
+  set_code ASC,
+  id ASC`;
+
+/** Only printings that have actually been released — a store can't stock a future set. */
+const RELEASED_FILTER = '(released_at IS NULL OR released_at <= CURRENT_DATE)';
+
+const RARITY_LETTERS: Record<string, string> = {
+  common: 'C',
+  uncommon: 'U',
+  rare: 'R',
+  mythic: 'M',
+  special: 'S',
+  bonus: 'S',
+};
 
 function rowToPartial(row: ScryfallDbRow): Partial<CardDataWithScryfall> {
   let primaryType = '';
@@ -43,6 +87,12 @@ function rowToPartial(row: ScryfallDbRow): Partial<CardDataWithScryfall> {
         ? parseFloat(cmcVal)
         : cmcVal;
 
+  // Single-letter shorthand for the printout; unknown values fall back to the
+  // raw first letter so a new Scryfall rarity never prints as blank.
+  const rarityRaw = row.rarity?.toLowerCase() ?? '';
+  const rarity =
+    RARITY_LETTERS[rarityRaw] ?? (rarityRaw ? rarityRaw[0].toUpperCase() : '');
+
   return {
     set: row.set_code || 'no match',
     legalities_standard: isStandardLegal,
@@ -50,6 +100,7 @@ function rowToPartial(row: ScryfallDbRow): Partial<CardDataWithScryfall> {
     cmc: Number.isNaN(cmc as number) ? '' : cmc,
     colors,
     primary_type: primaryType,
+    rarity,
   };
 }
 
@@ -57,12 +108,13 @@ async function lookupCardDataFromDb(
   cardName: string
 ): Promise<Partial<CardDataWithScryfall> | null> {
   const exact = await pool.query<ScryfallDbRow>(
-    `SELECT set_code, legalities, price_usd, cmc, colors, type_line
+    `SELECT ${SCRYFALL_COLUMNS}
      FROM mtgrequestbot_scryfall_cards
      WHERE lang = 'en'
        AND games @> '["paper"]'::jsonb
        AND lower(name) = lower($1)
-     ORDER BY released_at DESC NULLS LAST
+       AND ${RELEASED_FILTER}
+     ORDER BY ${PRINTING_RANK}
      LIMIT 1`,
     [cardName]
   );
@@ -71,13 +123,14 @@ async function lookupCardDataFromDb(
   }
 
   const fuzzy = await pool.query<ScryfallDbRow & { sim?: number }>(
-    `SELECT set_code, legalities, price_usd, cmc, colors, type_line,
+    `SELECT ${SCRYFALL_COLUMNS},
             similarity(name, $1) AS sim
      FROM mtgrequestbot_scryfall_cards
      WHERE lang = 'en'
        AND games @> '["paper"]'::jsonb
        AND similarity(name, $1) > $2
-     ORDER BY similarity(name, $1) DESC, released_at DESC NULLS LAST
+       AND ${RELEASED_FILTER}
+     ORDER BY similarity(name, $1) DESC, ${PRINTING_RANK}
      LIMIT 1`,
     [cardName, FUZZY_SIMILARITY_THRESHOLD]
   );
@@ -139,6 +192,7 @@ export async function fetchAllCardData(
       cmc: scryfallData?.cmc ?? '',
       colors: scryfallData?.colors || '',
       primary_type: scryfallData?.primary_type || '',
+      rarity: scryfallData?.rarity || '',
     };
   });
 

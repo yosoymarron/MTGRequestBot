@@ -63,6 +63,7 @@ async function processConfirmModalSubmit(
         cmc: '',
         colors: '',
         primary_type: '',
+        rarity: '',
       }));
     }
 

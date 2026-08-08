@@ -24,6 +24,7 @@ function generateHTML(data: PDFData): string {
     const cmc = card.cmc || '';
     const colors = card.colors || '';
     const type = card.primary_type || '';
+    const rarity = card.rarity || '';
 
     // SVG + CSS color (native checkboxes print grayscale; text ✓ can "tofu" in embedded fonts)
     const over5Mark =
@@ -43,6 +44,7 @@ function generateHTML(data: PDFData): string {
             <td>${type}</td>
             <td>${cmc}</td>
             <td>${colors}</td>
+            <td style="text-align: center;">${rarity}</td>
             <td>${lastSet}</td>
         </tr>`;
   });
@@ -116,7 +118,8 @@ function generateHTML(data: PDFData): string {
                 <th>Type</th>
                 <th>CMC</th>
                 <th>Colors</th>
-                <th>Last Printed Set</th>
+                <th>Rarity</th>
+                <th>LPS</th>
             </tr>
         </thead>
         <tbody>

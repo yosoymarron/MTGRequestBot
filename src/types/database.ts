@@ -22,6 +22,8 @@ export interface CardDataWithScryfall extends CardData {
   cmc: string | number;
   colors: string;
   primary_type: string;
+  /** Single-letter shorthand (C/U/R/M/S) for the printout. */
+  rarity: string;
 }
 
 export interface ParsedCardRequest {

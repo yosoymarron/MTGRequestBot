@@ -14,7 +14,11 @@ CREATE TABLE IF NOT EXISTS mtgrequestbot_scryfall_cards (
     price_usd NUMERIC(10, 2),
     cmc DOUBLE PRECISION,
     colors TEXT[] NOT NULL DEFAULT '{}',
-    type_line TEXT
+    type_line TEXT,
+    rarity TEXT,
+    promo BOOLEAN NOT NULL DEFAULT false,
+    set_type TEXT,
+    booster BOOLEAN NOT NULL DEFAULT false
 );
 
 CREATE INDEX IF NOT EXISTS idx_scryfall_cards_name_trgm
@@ -24,7 +28,9 @@ CREATE INDEX IF NOT EXISTS idx_scryfall_cards_lang_released
 
 COMMENT ON TABLE mtgrequestbot_scryfall_cards IS 'Subset of Scryfall default_cards bulk (English, paper) for local lookup';
 
--- Staging table: same shape, no trigram index (faster bulk load)
+-- Staging table: same shape, no trigram index (faster bulk load).
+-- Column ORDER must match the main table exactly — swapStagingToMain() copies
+-- rows with `INSERT INTO main SELECT * FROM staging`, which matches by position.
 CREATE TABLE IF NOT EXISTS mtgrequestbot_scryfall_cards_staging (
     id UUID PRIMARY KEY,
     name TEXT NOT NULL,
@@ -36,5 +42,9 @@ CREATE TABLE IF NOT EXISTS mtgrequestbot_scryfall_cards_staging (
     price_usd NUMERIC(10, 2),
     cmc DOUBLE PRECISION,
     colors TEXT[] NOT NULL DEFAULT '{}',
-    type_line TEXT
+    type_line TEXT,
+    rarity TEXT,
+    promo BOOLEAN NOT NULL DEFAULT false,
+    set_type TEXT,
+    booster BOOLEAN NOT NULL DEFAULT false
 );

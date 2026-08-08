@@ -188,6 +188,7 @@ async function processRequestList(
         cmc: '',
         colors: '',
         primary_type: '',
+        rarity: '',
       }));
     }
 
