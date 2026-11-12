@@ -23,6 +23,11 @@ const SCRYFALL_COLUMNS =
  * describe the same physical card.
  *
  * Ranking:
+ *  0. Released printings before future-dated ones, so LPS names a set that is
+ *     actually in stores (Sol Ring's newest printing was once a Secret Lair
+ *     dated 9 days out). This is a preference, not a filter: a card whose only
+ *     printing is in a set that has been spoiled but not yet released (a new set
+ *     in prerelease week) still matches, using that set's data.
  *  1. Normal printings before promos / Secret Lair / masterpieces / Un-sets.
  *     Rarity is per-printing, so a promo variant can disagree with the set
  *     printing (Sol Ring in `soc` is uncommon normally, mythic as a promo).
@@ -36,7 +41,8 @@ const SCRYFALL_COLUMNS =
  * COALESCE keeps this sane before the first bulk sync backfills the new
  * columns: NULL set_type/promo rank as "normal" instead of poisoning the sort.
  */
-const PRINTING_RANK = `(
+const PRINTING_RANK = `(released_at IS NOT NULL AND released_at > CURRENT_DATE) ASC,
+  (
     COALESCE(promo, false)
     OR COALESCE(set_type, '') IN ('promo', 'box', 'memorabilia', 'funny', 'token', 'minigame', 'masterpiece')
   ) ASC,
@@ -44,9 +50,6 @@ const PRINTING_RANK = `(
   COALESCE(booster, false) DESC,
   set_code ASC,
   id ASC`;
-
-/** Only printings that have actually been released — a store can't stock a future set. */
-const RELEASED_FILTER = '(released_at IS NULL OR released_at <= CURRENT_DATE)';
 
 const RARITY_LETTERS: Record<string, string> = {
   common: 'C',
@@ -113,7 +116,6 @@ async function lookupCardDataFromDb(
      WHERE lang = 'en'
        AND games @> '["paper"]'::jsonb
        AND lower(name) = lower($1)
-       AND ${RELEASED_FILTER}
      ORDER BY ${PRINTING_RANK}
      LIMIT 1`,
     [cardName]
@@ -129,7 +131,6 @@ async function lookupCardDataFromDb(
      WHERE lang = 'en'
        AND games @> '["paper"]'::jsonb
        AND similarity(name, $1) > $2
-       AND ${RELEASED_FILTER}
      ORDER BY similarity(name, $1) DESC, ${PRINTING_RANK}
      LIMIT 1`,
     [cardName, FUZZY_SIMILARITY_THRESHOLD]
